@@ -15,5 +15,45 @@
     "npm:pi-cache-optimizer",
     "npm:pi-deepseek-search"
   ],
-  "theme": "dark"
+  "theme": "dark",
+  "subagents": {
+    "defaultThinking": "max",
+    "agentOverrides": {
+      "advisor": {
+        "disabled": true
+      },
+      "worker": {
+        "model": "deepseek/deepseek-v4-pro",
+        "thinking": "max"
+      },
+      "context-builder": {
+        "model": "deepseek/deepseek-v4-pro",
+        "thinking": "max"
+      },
+      "researcher": {
+        "model": "deepseek/deepseek-v4-pro",
+        "thinking": "max"
+      },
+      "delegate": {
+        "model": "deepseek/deepseek-v4-flash",
+        "thinking": "max"
+      },
+      "scout": {
+        "model": "deepseek/deepseek-v4-flash",
+        "thinking": "max"
+      },
+      "planner": {
+        "model": "zhui/gpt-5.5",
+        "thinking": "xhigh"
+      },
+      "reviewer": {
+        "model": "zhui/gpt-5.6-sol",
+        "thinking": "max"
+      },
+      "oracle": {
+        "model": "zhui/gpt-5.6-sol",
+        "thinking": "max"
+      }
+    }
+  }
 }
