@@ -1,0 +1,9 @@
+# 敏感文件 —— 永不提交
+auth.json
+*.key
+**/secrets*
+web-search.json
+
+# 本地噪音
+.DS_Store
+*.log

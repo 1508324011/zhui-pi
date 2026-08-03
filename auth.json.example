@@ -1,0 +1,4 @@
+{
+  "deepseek": { "type": "api_key", "key": "sk-你的DeepSeek密钥" },
+  "zhui": { "type": "api_key", "key": "sk-你的zhui密钥" }
+}

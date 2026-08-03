@@ -1,0 +1,50 @@
+{
+  "permissionReviewLog": true,
+  "permission": {
+    "*": "allow",
+    "external_directory": "allow",
+    "path": {
+      "*": "allow",
+      "*.env": "deny",
+      "*.env.*": "deny",
+      "**/.env": "deny",
+      "**/.env.*": "deny",
+      "/root/.ssh/**": "deny"
+    },
+    "mcp": {
+      "*": "allow"
+    },
+    "skill": {
+      "*": "allow"
+    },
+    "bash": {
+      "*": "allow",
+      "sudo *": "deny",
+      "su *": "deny",
+      "rm -rf /": "deny",
+      "rm -fr /": "deny",
+      "rm -rf .": "deny",
+      "rm -fr .": "deny",
+      "rm -rf ..": "deny",
+      "rm -fr ..": "deny",
+      "rm -rf ~": "deny",
+      "rm -fr ~": "deny",
+      "git reset --hard*": "deny",
+      "git clean -fd*": "deny",
+      "git clean -fx*": "deny",
+      "curl *|sh": "deny",
+      "curl * | sh": "deny",
+      "curl *|bash": "deny",
+      "curl * | bash": "deny",
+      "wget *|sh": "deny",
+      "wget * | sh": "deny",
+      "dd *of=/dev/*": "deny",
+      "mkfs*": "deny",
+      "shutdown*": "deny",
+      "reboot*": "deny",
+      "poweroff*": "deny",
+      "chmod -R 777*": "deny",
+      "chmod 777 -R*": "deny"
+    }
+  }
+}

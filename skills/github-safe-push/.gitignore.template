@@ -1,0 +1,180 @@
+# =============================================================================
+# .gitignore Template - Security Focused
+# =============================================================================
+# 安全优先的 .gitignore 模板
+# 用法：cp .gitignore.template .gitignore
+# =============================================================================
+
+# =====================
+# API Keys & Secrets - 绝对不要提交
+# =====================
+*api*key*
+*apikey*
+*secret*
+*credentials*
+*password*
+*.env
+*.env.*
+.env.local
+.env.*.local
+*.local
+*.local.*
+
+# =====================
+# Certificates & Keys
+# =====================
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.crt
+*.cer
+*.der
+*.csr
+*.p12
+*.p8
+
+# =====================
+# Configuration Files (User-specific)
+# =====================
+*.local.jsonc
+*.local.json
+config.local.*
+settings.local.*
+*.local.yaml
+*.local.yml
+*.local.toml
+*.local.xml
+
+# 配置文件示例（可以提交）
+!*.example
+!*.template
+!*.dist
+
+# =====================
+# IDE & Editor
+# =====================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.sublime-*
+*.vim
+.DS_Store
+Thumbs.db
+
+# =====================
+# Logs & Temp Files
+# =====================
+*.log
+logs/
+tmp/
+temp/
+.cache/
+*.tmp
+*.bak
+
+# =====================
+# Build & Dependency
+# =====================
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+.env/
+.venv/
+vendor/
+target/
+build/
+dist/
+*.egg-info/
+
+# =====================
+# Database
+# =====================
+*.db
+*.sqlite
+*.sqlite3
+*.sqlitedb
+*.dump
+*.bak.sql
+
+# =====================
+# OS Generated
+# =====================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Desktop.ini
+
+# =====================
+# Jupyter Notebook
+# =====================
+.ipynb_checkpoints
+*.ipynb_checkpoints
+
+# =====================
+# Testing
+# =====================
+coverage/
+.nyc_output/
+*.cover
+*.pyc
+.pytest_cache/
+
+# =====================
+# Documentation Build
+# =====================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# =====================
+# Sensitive Data Patterns
+# =====================
+# 匹配包含敏感关键词的文件
+*secret*
+*credential*
+*password*
+*passwd*
+*token*
+
+# =====================
+# Backup Files
+# =====================
+*.backup
+*.bkp
+*.old
+*.orig
+
+# =====================
+# Allow specific files (exceptions)
+# =====================
+# 如果确实需要提交某些配置文件，取消下面的注释
+# !config.json
+# !settings.yaml

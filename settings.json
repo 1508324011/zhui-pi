@@ -1,0 +1,19 @@
+{
+  "lastChangelogVersion": "0.83.0",
+  "defaultProvider": "deepseek",
+  "defaultModel": "deepseek-v4-flash",
+  "defaultThinkingLevel": "max",
+  "packages": [
+    "npm:pi-mcp-adapter",
+    "npm:pi-subagents",
+    "npm:@juicesharp/rpiv-ask-user-question",
+    "npm:@juicesharp/rpiv-todo",
+    "npm:@gotgenes/pi-permission-system",
+    "npm:pi-lens",
+    "npm:pi-web-access",
+    "npm:pi-rtk-optimizer",
+    "npm:pi-cache-optimizer",
+    "npm:pi-deepseek-search"
+  ],
+  "theme": "dark"
+}
