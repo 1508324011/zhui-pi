@@ -54,6 +54,24 @@
         "model": "zhui/gpt-5.6-sol",
         "thinking": "max"
       }
+    },
+    "watchdog": {
+      "enabled": true,
+      "main": {
+        "model": "zhui/gpt-5.5",
+        "thinking": "xhigh"
+      },
+      "scope": {
+        "enabled": true
+      },
+      "autoFollow": {
+        "blockers": true,
+        "maxAttempts": 3,
+        "stalemateRepeats": 3
+      },
+      "lsp": {
+        "enabled": true
+      }
     }
   }
 }
