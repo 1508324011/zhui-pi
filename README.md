@@ -14,6 +14,18 @@
 | `auth.json.example` | 凭据模板（**手动填写**） | `~/.pi/agent/auth.json` |
 | `install.sh` | 一键恢复脚本 | - |
 
+## Trellis 工作流框架
+
+本机额外配置了 [Trellis](https://github.com/mindfold-ai/Trellis)（任务驱动开发框架）：
+
+- **CLI**: 全局安装 `@mindfoldhq/trellis`（`npm install -g @mindfoldhq/trellis`）
+- **项目初始化**: 在项目目录执行 `trellis init -u <用户名> --pi`
+- **产物**: 在项目内生成 `.trellis/`（specs/tasks/memory 核心）与 `.pi/`（Pi 平台资产：trellis-start/continue/finish-work 提示词、trellis-implement/check/research agents、12 个 trellis 技能）
+- **与 pi-subagents 集成**: Trellis 的 `trellis_*` agents 由 pi-subagents 机制加载，技能自动触发，无需额外配置
+- 首次进入已初始化的项目目录时，Pi 会提示信任项目（`.pi/` 资源），选择 Trust 即可
+
+> 注意：`.trellis/` 与项目内 `.pi/` 属于**项目目录**，不在本同步仓库中（按项目独立管理）。
+
 ## 新设备恢复步骤
 
 ```bash
