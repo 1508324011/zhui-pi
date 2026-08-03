@@ -53,6 +53,18 @@
       "oracle": {
         "model": "zhui/gpt-5.6-sol",
         "thinking": "max"
+      },
+      "trellis-implement": {
+        "model": "deepseek/deepseek-v4-pro",
+        "thinking": "max"
+      },
+      "trellis-check": {
+        "model": "zhui/gpt-5.6-sol",
+        "thinking": "max"
+      },
+      "trellis-research": {
+        "model": "deepseek/deepseek-v4-pro",
+        "thinking": "max"
       }
     },
     "watchdog": {
