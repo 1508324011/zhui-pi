@@ -15,7 +15,7 @@
     "npm:pi-cache-optimizer",
     "npm:pi-deepseek-search"
   ],
-  "theme": "dark",
+  "theme": "synthwave",
   "subagents": {
     "defaultThinking": "max",
     "agentOverrides": {

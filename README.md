@@ -6,10 +6,11 @@
 
 | 文件/目录 | 说明 | 目标位置 |
 | ----------- | ------ | --------- |
-| `settings.json` | 全局设置（默认模型/主题/已装包） | `~/.pi/agent/settings.json` |
+| `settings.json` | 全局设置（默认模型/**synthwave 主题**/已装包） | `~/.pi/agent/settings.json` |
 | `models.json` | zhui provider 配置（5 个模型+思考级别映射） | `~/.pi/agent/models.json` |
 | `mcp.json` | MCP 服务器（chrome-devtools + context7） | `~/.config/mcp/mcp.json` |
 | `extensions/` | 扩展配置（permission-system 权限规则） | `~/.pi/agent/extensions/` |
+| `packages/pi-sakura-cyberdeck/` | **synthwave 美化包**（自研定制：滚动条/拖拽/持久化历史/Pi logo 启动页） | `pi install` 本地路径 |
 | `skills/` | 96 个技能（superpowers 方法论 + 科学计算 + 写作） | `~/.pi/agent/skills/` |
 | `auth.json.example` | 凭据模板（**手动填写**） | `~/.pi/agent/auth.json` |
 | `install.sh` | 一键恢复脚本 | - |
