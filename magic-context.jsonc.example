@@ -11,6 +11,6 @@
   },
   "embedding": {
     "provider": "local",
-    "model": "Xenova/all-MiniLM-L6-v2"
+    "model": "Xenova/bge-small-zh-v1.5"
   }
 }
