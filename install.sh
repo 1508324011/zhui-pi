@@ -26,6 +26,14 @@ echo "==> 3/5 复制配置文件"
 cp "$SCRIPT_DIR/settings.json" "$AGENT_DIR/settings.json"
 cp "$SCRIPT_DIR/models.json" "$AGENT_DIR/models.json"
 cp "$SCRIPT_DIR/mcp.json" "$MCP_DIR/mcp.json"
+# Magic Context 配置（仅当目标不存在时从模板生成，避免覆盖已有配置）
+if [ ! -f "$HOME/.config/cortexkit/magic-context.jsonc" ]; then
+	mkdir -p "$HOME/.config/cortexkit"
+	cp "$SCRIPT_DIR/magic-context.jsonc.example" "$HOME/.config/cortexkit/magic-context.jsonc"
+	echo "  - magic-context.jsonc (已从模板生成)"
+else
+	echo "  - magic-context.jsonc (已存在，跳过)"
+fi
 cp "$SCRIPT_DIR/extensions/pi-permission-system/config.json" \
 	"$AGENT_DIR/extensions/pi-permission-system/config.json"
 

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://raw.githubusercontent.com/cortexkit/magic-context/master/assets/magic-context.schema.json",
+  "historian": {
+    "model": "deepseek/deepseek-v4-flash"
+  },
+  "dreamer": {
+    "model": "deepseek/deepseek-v4-flash"
+  },
+  "sidekick": {
+    "model": "deepseek/deepseek-v4-flash"
+  },
+  "embedding": {
+    "provider": "local",
+    "model": "Xenova/all-MiniLM-L6-v2"
+  }
+}
