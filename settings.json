@@ -13,7 +13,9 @@
     "npm:pi-web-access",
     "npm:pi-rtk-optimizer",
     "npm:pi-cache-optimizer",
-    "npm:pi-deepseek-search"
+    "npm:pi-deepseek-search",
+    "npm:@cortexkit/pi-magic-context",
+    "../../zhui-pi/packages/pi-sakura-cyberdeck"
   ],
   "theme": "synthwave",
   "subagents": {
