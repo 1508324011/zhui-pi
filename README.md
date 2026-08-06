@@ -19,10 +19,16 @@
 
 本机额外配置了 [Trellis](https://github.com/mindfold-ai/Trellis)（任务驱动开发框架）：
 
-- **CLI**: 全局安装 `@mindfoldhq/trellis`（`npm install -g @mindfoldhq/trellis`）
-- **项目初始化**: 在项目目录执行 `trellis init -u <用户名> --pi`
-- **产物**: 在项目内生成 `.trellis/`（specs/tasks/memory 核心）与 `.pi/`（Pi 平台资产：trellis-start/continue/finish-work 提示词、trellis-implement/check/research agents、12 个 trellis 技能）
-- **与 pi-subagents 集成**: Trellis 的 `trellis_*` agents 由 pi-subagents 机制加载，技能自动触发，无需额外配置
+- **CLI**: 全局安装 `@mindfoldhq/trellis`
+  ```bash
+  npm install -g @mindfoldhq/trellis@latest
+  ```
+  > ⚠️ **注意包名**：npm 上存在同名 `trellis` 包（TrellisVCS 语义版本控制），那是**另一个项目**。
+  > 正确的工作流框架包名是 **`@mindfoldhq/trellis`**（scoped package），安装时务必带 `@mindfoldhq/` 前缀。
+  > 如果误装了错误的包，先 `npm uninstall -g trellis` 再安装正确的。
+- **项目初始化**: 在项目目录执行 `trellis init --pi -u <用户名>`
+- **产物**: 在项目内生成 `.trellis/`（specs/tasks/memory 核心）与 `.pi/`（Pi 平台资产：trellis-start/continue/finish-work 提示词、trellis-implement/check/research agents、trellis 技能）
+- **与 pi-subagents 集成**: Trellis 的 `trellis-implement`/`trellis-check`/`trellis-research` agents 由 pi-subagents 机制加载（agent 定义在 `.pi/agents/`，extension 在 `.pi/extensions/trellis/`），技能自动触发，无需额外配置。settings.json 中需配置对应的 `agentOverrides`
 - 首次进入已初始化的项目目录时，Pi 会提示信任项目（`.pi/` 资源），选择 Trust 即可
 
 > 注意：`.trellis/` 与项目内 `.pi/` 属于**项目目录**，不在本同步仓库中（按项目独立管理）。
