@@ -11,7 +11,6 @@
     "npm:@gotgenes/pi-permission-system",
     "npm:pi-lens",
     "npm:pi-web-access",
-    "npm:pi-rtk-optimizer",
     "npm:pi-cache-optimizer",
     "npm:pi-deepseek-search",
     "npm:@cortexkit/pi-magic-context",
