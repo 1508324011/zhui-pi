@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  printf 'Usage: %s DIR\n' "${0##*/}" >&2
+  exit 64
+}
+
+run_pi() {
+  local pi_path="$1"
+  local rc
+
+  if [[ ! -x "$pi_path" ]]; then
+    printf 'tmuxpi: resolved pi is not executable: %s\n' "$pi_path" >&2
+    printf 'tmuxpi: press Enter to close this tmux session...' >&2
+    read -r _ || true
+    exit 1
+  fi
+
+  set +e
+  "$pi_path"
+  rc=$?
+  set -e
+
+  if [[ "$rc" -ne 0 ]]; then
+    printf '\n' >&2
+    printf 'tmuxpi: pi exited with status %s\n' "$rc" >&2
+    printf 'tmuxpi: press Enter to close this tmux session...' >&2
+    read -r _ || true
+  fi
+
+  exit "$rc"
+}
+
+fail() {
+  printf 'tmuxpi: %s\n' "$1" >&2
+  exit 1
+}
+
+require_bin() {
+  local name="$1"
+  local path
+
+  path="$(command -v "$name" || true)"
+  if [[ -z "$path" ]]; then
+    fail "required command not found: $name"
+  fi
+
+  if [[ ! -x "$path" ]]; then
+    fail "resolved command is not executable: $path"
+  fi
+
+  printf '%s\n' "$path"
+}
+
+shell_quote() {
+  printf '%q' "$1"
+}
+
+safe_label() {
+  local label
+
+  label="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -cs '[:alnum:]' '_' | sed 's/^_\+//; s/_\+$//')"
+  if [[ -z "$label" ]]; then
+    label='workspace'
+  fi
+
+  printf '%.24s\n' "$label"
+}
+
+resolve_self_path() {
+  local self="${BASH_SOURCE[0]}"
+
+  if [[ "$self" == */* ]]; then
+    "$realpath_bin" -e -- "$self"
+    return
+  fi
+
+  command -v "$self"
+}
+
+if [[ "${1:-}" == "--internal-run-pi" ]]; then
+  if [[ $# -ne 2 ]]; then
+    printf 'tmuxpi: internal usage error\n' >&2
+    exit 64
+  fi
+  run_pi "$2"
+fi
+
+if [[ $# -ne 1 ]]; then
+  usage
+fi
+
+tmux_bin="$(require_bin tmux)"
+realpath_bin="$(require_bin realpath)"
+sha256sum_bin="$(require_bin sha256sum)"
+pi_bin="$(require_bin pi)"
+script_path="$(resolve_self_path)" || fail "cannot resolve tmuxpi helper path"
+if [[ -z "$script_path" || ! -x "$script_path" ]]; then
+  fail "resolved tmuxpi helper is not executable: $script_path"
+fi
+
+target_dir="$("$realpath_bin" -e -- "$1")" || fail "cannot resolve path: $1"
+if [[ ! -d "$target_dir" ]]; then
+  fail "target is not a directory: $target_dir"
+fi
+
+safe_base="$(safe_label "$(basename -- "$target_dir")")"
+path_hash="$(printf '%s' "$target_dir" | "$sha256sum_bin" | cut -c1-8)"
+session_name="pi-${safe_base}-${path_hash}"
+
+if "$tmux_bin" has-session -t "$session_name" 2>/dev/null; then
+  exec "$tmux_bin" attach-session -d -t "$session_name"
+fi
+
+shell_command="$(shell_quote "$script_path") --internal-run-pi $(shell_quote "$pi_bin")"
+exec "$tmux_bin" new-session \
+  -s "$session_name" \
+  -c "$target_dir" \
+  -n pi \
+  "$shell_command"
