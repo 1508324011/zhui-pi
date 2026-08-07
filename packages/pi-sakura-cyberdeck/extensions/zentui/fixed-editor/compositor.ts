@@ -166,6 +166,7 @@ export class TerminalSplitCompositor {
 	} | null = null;
 	/** Incremented whenever Pi's renderer actually writes through the compositor. */
 	private writeRevision = 0;
+	private passThroughRepaintTimer: ReturnType<typeof setTimeout> | null = null;
 
 	constructor(
 		capabilities: PiFixedEditorCapabilities,
@@ -177,6 +178,19 @@ export class TerminalSplitCompositor {
 		this.getConfig = getConfig;
 		this.onCopy = onCopy ?? null;
 		this.onDismissNotice = onDismissNotice ?? null;
+	}
+
+	private schedulePassThroughRepaint(): void {
+		if (this.passThroughRepaintTimer || this.disposed) return;
+		this.passThroughRepaintTimer = setTimeout(() => {
+			this.passThroughRepaintTimer = null;
+			if (this.disposed || this.hasVisibleOverlay()) return;
+			this.cachedClusterRender = null;
+			this.requestRepaint();
+		}, 0);
+		if (typeof this.passThroughRepaintTimer === "object" && "unref" in this.passThroughRepaintTimer) {
+			(this.passThroughRepaintTimer as { unref: () => void }).unref();
+		}
 	}
 
 	install(): boolean {
@@ -252,6 +266,10 @@ export class TerminalSplitCompositor {
 		this.disposed = true;
 		if (!this.installed) return;
 		this.clearInputListener();
+		if (this.passThroughRepaintTimer) {
+			clearTimeout(this.passThroughRepaintTimer);
+			this.passThroughRepaintTimer = null;
+		}
 		if (this.mouseResumeTimer) {
 			clearTimeout(this.mouseResumeTimer);
 			this.mouseResumeTimer = null;
@@ -499,12 +517,20 @@ export class TerminalSplitCompositor {
 		}
 
 		const keyboard = parseKeyboardScroll(data);
-		if (!keyboard) return undefined;
+		if (!keyboard) {
+			// The editor component is hidden from Pi's normal render tree and painted
+			// separately as part of the pinned cluster. Plain text input is handled by
+			// the focused editor after this listener returns, so schedule one repaint
+			// for the next tick to pick up the editor's mutated state.
+			this.schedulePassThroughRepaint();
+			return undefined;
+		}
 
 		if (keyboard.action === "jumpBottom") {
 			this.scrollOffset = 0;
 			this.selection.clear();
 			this.capabilities.requestRender?.();
+			this.schedulePassThroughRepaint();
 			return undefined; // Let Enter propagate to the editor.
 		}
 

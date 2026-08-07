@@ -2,7 +2,7 @@
 
 Sakura Macaron visual pack for [Pi](https://pi.dev).
 
-**v1.1.5** — disables Zentui fixed-editor by default to keep Pi input responsive on Pi 0.84/tmux.
+**v1.1.6** — fixed Zentui fixed-editor input repaint on Pi 0.84/tmux.
 
 ## What’s inside
 
@@ -11,10 +11,9 @@ Sakura Macaron visual pack for [Pi](https://pi.dev).
 | **Theme** `sakura-macaron` | Truecolor palette (sakura / peach / petal / lavender / sky / mint / coral) |
 | **Header** | Sakura→sky cyberdeck startup art |
 | **Matrix** | Pastel digital rain while working (optional; can conflict with shimmer) |
+| **Zentui** | Editor, prompt rails, Starship footer, fixed bottom editor |
 | **Dual-quota** | Codex + Grok remaining chips in the footer |
 | **Claude shimmer** | Working spinner with macaron sweep + effort HUD |
-
-Zentui source files remain in the package for reference, but `./extensions/zentui/index.ts` is not auto-loaded. On Pi 0.84 under tmux it can swallow editor input, leaving the UI apparently frozen.
 
 ## Look (v1.1)
 
@@ -80,11 +79,23 @@ Then `/settings` → **sakura-macaron**. Restart Pi once.
 
 > Prefer **this package’s shimmer** over stock `npm:pi-claude-shimmer`, and turn off `sakura-matrix` if both fight for the working indicator.
 
-No Zentui companion config is required by default. If you manually load the bundled Zentui extension, keep its config user-owned and verify editor input before making it permanent.
+Recommended companion settings (optional, user-owned):
+
+```jsonc
+// ~/.pi/agent/sakura-cyberdeck-zentui.json (excerpt)
+{
+  "colors": {
+    "contextNormal": "syntaxFunction",
+    "cost": "mdCode",
+    "editorBorder": "sakura-macaron-gradient"
+  }
+}
+```
 
 ## Commands
 
 ```text
+/zentui                         editor/footer settings
 /sakura-matrix                 rain status
 /sakura-matrix on|off
 /dual-usage                    refresh Codex+Grok quotas
@@ -95,6 +106,11 @@ No Zentui companion config is required by default. If you manually load the bund
 Avoid stacking with `pi-zentui`, `pi-powerline-footer`, `@tifan/pi-fixed-editor`, stock `pi-claude-shimmer`, or a second copy of this pack. They share footer / working / editor surfaces.
 
 ## Changelog
+
+### 1.1.6
+
+- **Fixed editor**: repaint the pinned editor cluster on the next tick after ordinary keyboard input passes through to Pi's focused editor. Pi 0.84 can otherwise mutate the hidden editor state without repainting the fixed bottom cluster, making typed characters appear swallowed.
+- Re-enable Zentui/fixed-editor by default.
 
 ### 1.1.5
 
