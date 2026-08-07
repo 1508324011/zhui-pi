@@ -1,5 +1,6 @@
 {
   "lastChangelogVersion": "0.83.0",
+  "quietStartup": true,
   "defaultProvider": "deepseek",
   "defaultModel": "deepseek-v4-flash",
   "defaultThinkingLevel": "max",

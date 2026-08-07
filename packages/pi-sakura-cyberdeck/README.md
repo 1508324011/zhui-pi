@@ -2,7 +2,7 @@
 
 Sakura Macaron visual pack for [Pi](https://pi.dev).
 
-**v1.1.6** — fixed Zentui fixed-editor input repaint on Pi 0.84/tmux.
+**v1.1.7** — removes idle footer pulse renders that made fixed-editor sessions sluggish.
 
 ## What’s inside
 
@@ -106,6 +106,11 @@ Recommended companion settings (optional, user-owned):
 Avoid stacking with `pi-zentui`, `pi-powerline-footer`, `@tifan/pi-fixed-editor`, stock `pi-claude-shimmer`, or a second copy of this pack. They share footer / working / editor surfaces.
 
 ## Changelog
+
+### 1.1.7
+
+- **Performance**: remove the 250ms idle footer pulse timer. With fixed-editor enabled, that timer forced full TUI renders four times per second even when nothing changed, which is costly on large session transcripts.
+- The enhanced editor, fixed bottom input, footer, and Zentui command remain enabled by default; gradients now refresh on normal UI updates instead of idle animation ticks.
 
 ### 1.1.6
 

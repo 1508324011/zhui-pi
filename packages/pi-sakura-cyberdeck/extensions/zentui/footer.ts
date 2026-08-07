@@ -196,30 +196,14 @@ export function installFooter(
 			tui.requestRender();
 		});
 
-		// Soft macaron pulse — only when phase-tinted segments exist; slower tick.
-		// Still animates gauges/separators; avoids 8fps full footer redraws when idle
-		// with no gradient content (ascii / text-only).
-		const wantsPulse = () => {
-			const cfg = getConfig();
-			if (cfg.icons.mode === "ascii") return false;
-			// Gauge styles + gradient separators/cwd/os use phase.
-			if (cfg.contextStyle !== "text" && cfg.footerSegments.context) return true;
-			if (cfg.separator !== "none") return true;
-			if (cfg.footerSegments.cwd || cfg.footerSegments.os) return true;
-			if (cfg.footerFormat && /\$(?:context|cwd|os|sep)\b/.test(cfg.footerFormat)) return true;
-			return false;
-		};
-		let pulseTimer: ReturnType<typeof setInterval> | undefined;
-		if (wantsPulse()) {
-			pulseTimer = setInterval(() => {
-				tui.requestRender();
-			}, 250) as ReturnType<typeof setInterval> & { unref?: () => void };
-			(pulseTimer as { unref?: () => void }).unref?.();
-		}
+		// Keep the footer static while idle. A full TUI render is expensive with the
+		// fixed editor because the pinned cluster is composed separately; animation
+		// ticks here repaint the whole screen even when nothing changed.
+		// Dynamic colors still update on normal host renders (input, model/status,
+		// context changes, tool/message events).
 
 		return {
 			dispose: () => {
-				if (pulseTimer) clearInterval(pulseTimer);
 				unsubscribeBranch();
 				hooks.setRequestRender(undefined);
 				hooks.setExtensionStatusesGetter?.(undefined);
