@@ -1,5 +1,8 @@
 {
   "$schema": "https://raw.githubusercontent.com/cortexkit/magic-context/master/assets/magic-context.schema.json",
+  "execute_threshold_percentage": 40,
+  "historian_timeout_ms": 120000,
+  "history_budget_percentage": 0.12,
   "historian": {
     "model": "deepseek/deepseek-v4-flash"
   },
@@ -14,3 +17,4 @@
     "model": "Xenova/bge-small-zh-v1.5"
   }
 }
+

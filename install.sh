@@ -7,7 +7,7 @@ MCP_DIR="$HOME/.config/mcp"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 echo "==> 1/6 创建目录"
-mkdir -p "$AGENT_DIR/extensions/pi-permission-system" "$MCP_DIR" "$AGENT_DIR/skills"
+mkdir -p "$AGENT_DIR/extensions/pi-permission-system" "$MCP_DIR" "$AGENT_DIR/skills" "$AGENT_DIR/agents"
 
 echo "==> 2/6 安装扩展包"
 for pkg in \
@@ -49,8 +49,11 @@ fi
 cp "$SCRIPT_DIR/extensions/pi-permission-system/config.json" \
 	"$AGENT_DIR/extensions/pi-permission-system/config.json"
 
-echo "==> 5/6 复制技能库"
+echo "==> 5/6 复制技能库与 agents"
 cp -r "$SCRIPT_DIR/skills/"* "$AGENT_DIR/skills/"
+if [ -d "$SCRIPT_DIR/agents" ]; then
+	cp -r "$SCRIPT_DIR/agents/"* "$AGENT_DIR/agents/"
+fi
 
 echo "==> 6/6 完成"
 echo ""
