@@ -1,6 +1,9 @@
 {
   "$schema": "https://raw.githubusercontent.com/cortexkit/magic-context/master/assets/magic-context.schema.json",
   "execute_threshold_percentage": 40,
+  "execute_threshold_tokens": {
+    "default": 100000
+  },
   "historian_timeout_ms": 120000,
   "history_budget_percentage": 0.12,
   "historian": {
