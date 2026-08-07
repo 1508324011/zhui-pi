@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 const WIDGET_KEY = "sakura-matrix-engine";
+const FIXED_EDITOR_REPAINT = Symbol.for("sakura-cyberdeck.fixed-editor.repaint");
 const CONFIG_PATH = join(homedir(), ".pi", "agent", "sakura-cyberdeck-matrix.json");
 const RESET = "\x1b[0m";
 // Qu Yuan's "Tian Wen" (Questions to Heaven) — deduplicated glyph pool.
@@ -48,7 +49,7 @@ interface Drop {
 
 const DEFAULT_CONFIG: MatrixConfig = {
   enabled: true,
-  fps: 10,
+  fps: 8,
   density: 0.35, // Chinese glyphs are dense; keep the rain readable
   height: 4,
 };
@@ -276,7 +277,16 @@ export default function sakuraMatrixExtension(pi: ExtensionAPI): void {
     ctx.ui.setWorkingIndicator({ frames: [workingIndicatorFrame()] });
     ctx.ui.setWorkingMessage(PHASE_MESSAGES[phase]);
     ctx.ui.setWidget(WIDGET_KEY, (tui) => {
-      requestRender = () => tui.requestRender();
+      requestRender = () => {
+        const repaintFixedEditor =
+          (tui as Record<PropertyKey, unknown>)[FIXED_EDITOR_REPAINT]
+          ?? (globalThis as Record<PropertyKey, unknown>)[FIXED_EDITOR_REPAINT];
+        if (typeof repaintFixedEditor === "function") {
+          repaintFixedEditor();
+          return;
+        }
+        tui.requestRender();
+      };
       return component;
     });
     schedule(token);

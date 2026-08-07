@@ -11,11 +11,17 @@
  * @internal
  */
 
+/// <reference path="../../../types/fixed-editor-peer-shims.d.ts" />
+
 import { copyToClipboard } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
 import { renderCluster } from "./cluster";
-import { clampScrollOffset, parseAllMouseEvents, parseKeyboardScroll } from "./input";
+import {
+	clampScrollOffset,
+	parseAllMouseEvents,
+	parseKeyboardScroll,
+} from "./input";
 import type {
 	PiFixedEditorCapabilities,
 	PiMethodCapability,
@@ -49,14 +55,22 @@ function replaceMethod(
 ): void {
 	const descriptor = capability.ownDescriptor;
 	Object.defineProperty(capability.target, capability.key, {
-		...(descriptor ?? { configurable: true, enumerable: false, writable: true }),
+		...(descriptor ?? {
+			configurable: true,
+			enumerable: false,
+			writable: true,
+		}),
 		value: method,
 	});
 }
 
 function restoreMethod(capability: PiMethodCapability): void {
 	if (capability.ownDescriptor) {
-		Object.defineProperty(capability.target, capability.key, capability.ownDescriptor);
+		Object.defineProperty(
+			capability.target,
+			capability.key,
+			capability.ownDescriptor,
+		);
 	} else {
 		Reflect.deleteProperty(capability.target, capability.key);
 	}
@@ -65,7 +79,11 @@ function restoreMethod(capability: PiMethodCapability): void {
 function hideRenderable(capability: PiRenderableCapability | null): void {
 	if (!capability) return;
 	Object.defineProperty(capability.target, "render", {
-		...(capability.ownDescriptor ?? { configurable: true, enumerable: false, writable: true }),
+		...(capability.ownDescriptor ?? {
+			configurable: true,
+			enumerable: false,
+			writable: true,
+		}),
 		value: () => [],
 	});
 }
@@ -73,14 +91,20 @@ function hideRenderable(capability: PiRenderableCapability | null): void {
 function restoreRenderable(capability: PiRenderableCapability | null): void {
 	if (!capability) return;
 	if (capability.ownDescriptor) {
-		Object.defineProperty(capability.target, "render", capability.ownDescriptor);
+		Object.defineProperty(
+			capability.target,
+			"render",
+			capability.ownDescriptor,
+		);
 	} else {
 		Reflect.deleteProperty(capability.target, "render");
 	}
 }
 
 function sanitizeLine(line: string, width: number): string {
-	return visibleWidth(line) > width ? truncateToWidth(line, width, "", true) : line;
+	return visibleWidth(line) > width
+		? truncateToWidth(line, width, "", true)
+		: line;
 }
 
 function fitLineToWidth(line: string, width: number): string {
@@ -104,12 +128,44 @@ function constrainScreenClears(data: string, scrollBottom: number): string {
 	});
 }
 
-const STARTUP_RESOURCE_LABELS = new Set(["[Skills]", "[Prompts]", "[Extensions]", "[Themes]"]);
+const STARTUP_RESOURCE_LABELS = new Set([
+	"[Skills]",
+	"[Prompts]",
+	"[Extensions]",
+	"[Themes]",
+]);
 const ANSI_PATTERN = /\x1b\[[0-?]*[ -/]*[@-~]/g;
 const OSC_PATTERN = /\x1b\][^\x07]*(?:\x07|\x1b\\)/g;
+const FIXED_EDITOR_REPAINT = Symbol.for(
+	"sakura-cyberdeck.fixed-editor.repaint",
+);
+const CLUSTER_LAYOUT_HOLD_MS = 160;
+const COMMAND_PANEL_HINT_MS = 1200;
+const BASE_CLUSTER_ROWS_FALLBACK = 6;
+const TRANSIENT_PANEL_MIN_RESERVED_ROWS = 20;
+const TRANSIENT_PANEL_SLACK_ROWS = 5;
 
 function plainLine(line: string): string {
 	return line.replace(OSC_PATTERN, "").replace(ANSI_PATTERN, "").trim();
+}
+
+function dataTouchesScrollableTranscript(
+	data: string,
+	scrollBottom: number,
+): boolean {
+	if (scrollBottom <= 0) return false;
+	if (/\x1b(?:c|\[(?:2|3)J)/.test(data)) return true;
+
+	const rows: number[] = [];
+	for (const match of data.matchAll(/\x1b\[(\d+);\d+[Hf]/g)) {
+		rows.push(Number(match[1]));
+	}
+	if (/\x1b\[H/.test(data)) rows.push(1);
+	if (rows.length > 0) return rows.some((row) => row <= scrollBottom);
+
+	if (/\x1b\[(?:2K|K)/.test(data)) return true;
+	const printable = data.replace(OSC_PATTERN, "").replace(ANSI_PATTERN, "");
+	return /\S/.test(printable);
 }
 
 function findStartupResourceStart(lines: string[]): number {
@@ -156,14 +212,32 @@ export class TerminalSplitCompositor {
 
 	private readonly onCopy: (() => void) | null;
 	private readonly onDismissNotice: (() => void) | null;
+	private repaintHookDescriptor: PropertyDescriptor | undefined;
+	private repaintHookInstalled = false;
+	private globalRepaintHookDescriptor: PropertyDescriptor | undefined;
+	private globalRepaintHookInstalled = false;
 
-	private cachedClusterRender: { width: number; rows: number; render: ClusterRender } | null = null;
+	private cachedClusterRender: {
+		width: number;
+		rows: number;
+		render: ClusterRender;
+	} | null = null;
 	private paintedCluster: {
 		width: number;
 		rawRows: number;
 		startRow: number;
 		lines: string[];
 	} | null = null;
+	private paintedTranscript: {
+		width: number;
+		scrollBottom: number;
+		lines: string[];
+	} | null = null;
+	private stabilizedClusterRows = 0;
+	private latestClusterRows = 0;
+	private baselineClusterRows = BASE_CLUSTER_ROWS_FALLBACK;
+	private clusterRowsReleaseTimer: ReturnType<typeof setTimeout> | null = null;
+	private commandPanelHintUntil = 0;
 	/** Incremented whenever Pi's renderer actually writes through the compositor. */
 	private writeRevision = 0;
 	private passThroughRepaintTimer: ReturnType<typeof setTimeout> | null = null;
@@ -184,13 +258,74 @@ export class TerminalSplitCompositor {
 		if (this.passThroughRepaintTimer || this.disposed) return;
 		this.passThroughRepaintTimer = setTimeout(() => {
 			this.passThroughRepaintTimer = null;
-			if (this.disposed || this.hasVisibleOverlay()) return;
-			this.cachedClusterRender = null;
-			this.requestRepaint();
+			this.repaintPinnedCluster();
 		}, 0);
-		if (typeof this.passThroughRepaintTimer === "object" && "unref" in this.passThroughRepaintTimer) {
+		if (
+			typeof this.passThroughRepaintTimer === "object" &&
+			"unref" in this.passThroughRepaintTimer
+		) {
 			(this.passThroughRepaintTimer as { unref: () => void }).unref();
 		}
+	}
+
+	private repaintPinnedCluster(): void {
+		if (this.disposed || this.hasVisibleOverlay()) return;
+		this.cachedClusterRender = null;
+		this.requestRepaint();
+	}
+
+	private installRepaintHook(): void {
+		const repaint = () => this.repaintPinnedCluster();
+		this.repaintHookDescriptor = Object.getOwnPropertyDescriptor(
+			this.capabilities.tui,
+			FIXED_EDITOR_REPAINT,
+		);
+		Object.defineProperty(this.capabilities.tui, FIXED_EDITOR_REPAINT, {
+			configurable: true,
+			enumerable: false,
+			value: repaint,
+		});
+		this.repaintHookInstalled = true;
+
+		this.globalRepaintHookDescriptor = Object.getOwnPropertyDescriptor(
+			globalThis,
+			FIXED_EDITOR_REPAINT,
+		);
+		Object.defineProperty(globalThis, FIXED_EDITOR_REPAINT, {
+			configurable: true,
+			enumerable: false,
+			value: repaint,
+		});
+		this.globalRepaintHookInstalled = true;
+	}
+
+	private restoreRepaintHook(): void {
+		if (this.repaintHookInstalled) {
+			if (this.repaintHookDescriptor) {
+				Object.defineProperty(
+					this.capabilities.tui,
+					FIXED_EDITOR_REPAINT,
+					this.repaintHookDescriptor,
+				);
+			} else {
+				Reflect.deleteProperty(this.capabilities.tui, FIXED_EDITOR_REPAINT);
+			}
+		}
+		if (this.globalRepaintHookInstalled) {
+			if (this.globalRepaintHookDescriptor) {
+				Object.defineProperty(
+					globalThis,
+					FIXED_EDITOR_REPAINT,
+					this.globalRepaintHookDescriptor,
+				);
+			} else {
+				Reflect.deleteProperty(globalThis, FIXED_EDITOR_REPAINT);
+			}
+		}
+		this.repaintHookDescriptor = undefined;
+		this.repaintHookInstalled = false;
+		this.globalRepaintHookDescriptor = undefined;
+		this.globalRepaintHookInstalled = false;
 	}
 
 	install(): boolean {
@@ -211,25 +346,37 @@ export class TerminalSplitCompositor {
 				configurable: true,
 				get: () => this.getScrollableRows(),
 			});
-			replaceMethod(this.capabilities.renderMethod, (width) =>
-				this.renderScrollableRoot(Number(width)),
-			);
 			replaceMethod(this.capabilities.doRenderMethod, () => {
 				this.cachedClusterRender = null;
-				const revisionBeforeRender = this.writeRevision;
+				try {
+					if (this.renderFixedScreen()) return;
+				} catch {
+					// Fall back to Pi's renderer if fixed transcript rendering is unavailable.
+				}
 				try {
 					this.callOriginalDoRender();
-					// terminal.write() already paints the pinned cluster. Repaint only when
-					// Pi produced no terminal output (for example, a footer-only update).
-					if (this.writeRevision === revisionBeforeRender) this.requestRepaint();
 				} catch {
 					// If doRender throws, the original write may already have happened.
 				}
 			});
-			replaceMethod(this.capabilities.writeMethod, (data) => this.write(String(data)));
+			if (this.capabilities.requestRenderMethod) {
+				replaceMethod(
+					this.capabilities.requestRenderMethod,
+					(force = false) => {
+						this.capabilities.requestRender?.(Boolean(force));
+						if (!force) this.schedulePassThroughRepaint();
+					},
+				);
+			}
+			this.installRepaintHook();
+			replaceMethod(this.capabilities.writeMethod, (data) =>
+				this.write(String(data)),
+			);
 
 			this.inputListener = (data) => this.handleInput(data);
-			const inputListenerDisposer = this.capabilities.addInputListener(this.inputListener);
+			const inputListenerDisposer = this.capabilities.addInputListener(
+				this.inputListener,
+			);
 			if (typeof inputListenerDisposer !== "function") {
 				throw new TypeError("Invalid input listener disposer");
 			}
@@ -257,7 +404,9 @@ export class TerminalSplitCompositor {
 		}
 		try {
 			this.capabilities.requestRender?.(true);
-		} catch {}
+		} catch {
+			// Best-effort initial repaint; rollback already handled install failures.
+		}
 		return true;
 	}
 
@@ -269,6 +418,10 @@ export class TerminalSplitCompositor {
 		if (this.passThroughRepaintTimer) {
 			clearTimeout(this.passThroughRepaintTimer);
 			this.passThroughRepaintTimer = null;
+		}
+		if (this.clusterRowsReleaseTimer) {
+			clearTimeout(this.clusterRowsReleaseTimer);
+			this.clusterRowsReleaseTimer = null;
 		}
 		if (this.mouseResumeTimer) {
 			clearTimeout(this.mouseResumeTimer);
@@ -284,7 +437,9 @@ export class TerminalSplitCompositor {
 		this.installed = false;
 		try {
 			this.capabilities.requestRender?.(true);
-		} catch {}
+		} catch {
+			// Best-effort repaint after restoring Pi's native render tree.
+		}
 	}
 
 	private rollbackInstallation(): void {
@@ -309,19 +464,27 @@ export class TerminalSplitCompositor {
 			try {
 				disposer();
 				disposed = true;
-			} catch {}
+			} catch {
+				// Listener cleanup is best-effort during dispose/rollback.
+			}
 		}
 		if (!disposed && listener) {
 			try {
 				this.capabilities.removeInputListener(listener);
-			} catch {}
+			} catch {
+				// Older Pi builds may not expose a removable listener handle.
+			}
 		}
 	}
 
 	private restorePatchedCapabilities(): void {
+		this.restoreRepaintHook();
 		restoreMethod(this.capabilities.writeMethod);
 		restoreMethod(this.capabilities.doRenderMethod);
 		restoreMethod(this.capabilities.renderMethod);
+		if (this.capabilities.requestRenderMethod) {
+			restoreMethod(this.capabilities.requestRenderMethod);
+		}
 		for (const component of [
 			this.capabilities.cluster.status,
 			this.capabilities.cluster.aboveWidget,
@@ -343,7 +506,11 @@ export class TerminalSplitCompositor {
 	}
 
 	private callOriginalWrite(data: string): void {
-		Reflect.apply(this.capabilities.writeMethod.method, this.capabilities.terminal, [data]);
+		Reflect.apply(
+			this.capabilities.writeMethod.method,
+			this.capabilities.terminal,
+			[data],
+		);
 	}
 
 	private resetTuiRenderState(): void {
@@ -355,19 +522,59 @@ export class TerminalSplitCompositor {
 		] as const) {
 			try {
 				Reflect.set(this.capabilities.tui, key, value);
-			} catch {}
+			} catch {
+				// Some Pi versions keep render bookkeeping readonly; reset what we can.
+			}
 		}
 		this.paintedCluster = null;
+		this.paintedTranscript = null;
 	}
 
 	private callOriginalDoRender(): void {
-		Reflect.apply(this.capabilities.doRenderMethod.method, this.capabilities.tui, []);
+		Reflect.apply(
+			this.capabilities.doRenderMethod.method,
+			this.capabilities.tui,
+			[],
+		);
 	}
 
 	private callOriginalRender(width: number): string[] {
-		return Reflect.apply(this.capabilities.renderMethod.method, this.capabilities.tui, [
-			width,
-		]) as string[];
+		return Reflect.apply(
+			this.capabilities.renderMethod.method,
+			this.capabilities.tui,
+			[width],
+		) as string[];
+	}
+
+	private renderFixedScreen(): boolean {
+		if (this.disposed || this.hasVisibleOverlay()) return false;
+		const rawRows = this.getRawRows();
+		const width = Math.max(1, this.capabilities.getColumns() || 80);
+		const cluster = this.getClusterRender(width, rawRows);
+		const reservedRows = this.getReservedRows(
+			cluster.lines.length,
+			rawRows,
+			this.isTransientPanelExpected(cluster),
+		);
+		if (reservedRows === 0 || rawRows <= 2) return false;
+
+		const paddedCluster = this.padClusterToReservedRows(cluster, reservedRows);
+		const scrollBottom = Math.max(1, rawRows - reservedRows);
+		const lines = this.renderScrollableRoot(width, reservedRows).slice(
+			0,
+			scrollBottom,
+		);
+		const buf =
+			SYNC_BEGIN +
+			DISABLE_AUTOWRAP +
+			RESET_SCROLL_REGION +
+			this.paintTranscript(lines, width, scrollBottom) +
+			this.paintCluster(paddedCluster, rawRows, width) +
+			ENABLE_AUTOWRAP +
+			(this.getConfig().mouseScroll ? ENABLE_MOUSE_SGR : DISABLE_MOUSE) +
+			SYNC_END;
+		this.callOriginalWrite(buf);
+		return true;
 	}
 
 	private getRawRows(): number {
@@ -375,7 +582,10 @@ export class TerminalSplitCompositor {
 	}
 
 	private getClusterRender(width: number, rawRows: number): ClusterRender {
-		if (this.cachedClusterRender?.width === width && this.cachedClusterRender?.rows === rawRows) {
+		if (
+			this.cachedClusterRender?.width === width &&
+			this.cachedClusterRender?.rows === rawRows
+		) {
 			return this.cachedClusterRender.render;
 		}
 		const wasRendering = this.renderingCluster;
@@ -387,6 +597,155 @@ export class TerminalSplitCompositor {
 		} finally {
 			this.renderingCluster = wasRendering;
 		}
+	}
+
+	private scheduleClusterRowsRelease(): void {
+		if (this.disposed) return;
+		if (this.clusterRowsReleaseTimer) {
+			clearTimeout(this.clusterRowsReleaseTimer);
+		}
+		this.clusterRowsReleaseTimer = setTimeout(() => {
+			this.clusterRowsReleaseTimer = null;
+			if (this.disposed) return;
+			if (this.latestClusterRows >= this.stabilizedClusterRows) return;
+			this.stabilizedClusterRows = this.latestClusterRows;
+			this.paintedTranscript = null;
+			this.capabilities.requestRender?.();
+		}, CLUSTER_LAYOUT_HOLD_MS);
+		if (
+			typeof this.clusterRowsReleaseTimer === "object" &&
+			"unref" in this.clusterRowsReleaseTimer
+		) {
+			(this.clusterRowsReleaseTimer as { unref: () => void }).unref();
+		}
+	}
+
+	private hasTransientPanel(cluster: ClusterRender): boolean {
+		return cluster.lines.some((line) => {
+			const text = plainLine(line);
+			return /^→\s/.test(text) || /^\s*\(\d+\/\d+\)$/.test(text);
+		});
+	}
+
+	private hasCommandPanelHint(): boolean {
+		return Date.now() < this.commandPanelHintUntil;
+	}
+
+	private isTransientPanelExpected(cluster: ClusterRender): boolean {
+		return this.hasCommandPanelHint() || this.hasTransientPanel(cluster);
+	}
+
+	private updateCommandPanelHint(data: string): void {
+		if (data === "/") {
+			this.commandPanelHintUntil = Date.now() + COMMAND_PANEL_HINT_MS;
+			return;
+		}
+		if (this.commandPanelHintUntil <= Date.now()) return;
+		if (
+			data === "\r" ||
+			data === "\n" ||
+			data === "\x1b" ||
+			data === "\u0003" ||
+			data === "\x7f" ||
+			data === "\b"
+		) {
+			this.commandPanelHintUntil = 0;
+			return;
+		}
+		if (data.length === 1 && data >= " ") {
+			this.commandPanelHintUntil = Date.now() + COMMAND_PANEL_HINT_MS;
+		}
+	}
+
+	private getReservedRows(
+		clusterRows: number,
+		rawRows: number,
+		panelOpen = false,
+	): number {
+		const maxRows = Math.max(0, rawRows - 1);
+		const nextRows = Math.max(0, Math.min(clusterRows, maxRows));
+		if (!panelOpen && nextRows > 0 && nextRows <= this.baselineClusterRows + 1) {
+			this.baselineClusterRows = Math.min(this.baselineClusterRows, nextRows);
+		}
+		const expandedRows = panelOpen
+			? Math.min(
+					maxRows,
+					Math.max(
+						nextRows + TRANSIENT_PANEL_SLACK_ROWS,
+						TRANSIENT_PANEL_MIN_RESERVED_ROWS,
+					),
+				)
+			: nextRows;
+		this.latestClusterRows = nextRows;
+
+		if (
+			this.stabilizedClusterRows === 0 ||
+			expandedRows > this.stabilizedClusterRows
+		) {
+			if (this.clusterRowsReleaseTimer) {
+				clearTimeout(this.clusterRowsReleaseTimer);
+				this.clusterRowsReleaseTimer = null;
+			}
+			this.stabilizedClusterRows = expandedRows;
+			return expandedRows;
+		}
+
+		this.stabilizedClusterRows = Math.min(this.stabilizedClusterRows, maxRows);
+		if (panelOpen) {
+			if (this.clusterRowsReleaseTimer) {
+				clearTimeout(this.clusterRowsReleaseTimer);
+				this.clusterRowsReleaseTimer = null;
+			}
+			return this.stabilizedClusterRows;
+		}
+
+		this.scheduleClusterRowsRelease();
+		return this.stabilizedClusterRows;
+	}
+
+	private padClusterToReservedRows(
+		cluster: ClusterRender,
+		reservedRows: number,
+	): ClusterRender {
+		const missingRows = Math.max(0, reservedRows - cluster.lines.length);
+		if (missingRows === 0) return cluster;
+		return {
+			lines: [...Array(missingRows).fill(""), ...cluster.lines],
+			cursor: cluster.cursor
+				? { row: cluster.cursor.row + missingRows, col: cluster.cursor.col }
+				: null,
+		};
+	}
+
+	private paintTranscript(
+		lines: string[],
+		width: number,
+		scrollBottom: number,
+	): string {
+		const nextLines = Array.from({ length: scrollBottom }, (_, index) =>
+			sanitizeLine(lines[index] ?? "", width),
+		);
+		const previous = this.paintedTranscript;
+		const sameLayout =
+			previous?.width === width &&
+			previous.scrollBottom === scrollBottom &&
+			previous.lines.length === nextLines.length;
+		let buf = "";
+
+		if (sameLayout && previous) {
+			for (let row = 1; row <= scrollBottom; row++) {
+				const line = nextLines[row - 1] ?? "";
+				if (previous.lines[row - 1] === line) continue;
+				buf += cursorTo(row, 1) + CLEAR_LINE + line;
+			}
+		} else {
+			for (let row = 1; row <= scrollBottom; row++) {
+				buf += cursorTo(row, 1) + CLEAR_LINE + (nextLines[row - 1] ?? "");
+			}
+		}
+
+		this.paintedTranscript = { width, scrollBottom, lines: nextLines };
+		return buf;
 	}
 
 	private getScrollableRows(): number {
@@ -402,7 +761,12 @@ export class TerminalSplitCompositor {
 		const rawRows = this.getRawRows();
 		const width = Math.max(1, this.capabilities.getColumns() || 80);
 		const cluster = this.getClusterRender(width, rawRows);
-		return Math.max(1, rawRows - cluster.lines.length);
+		const reservedRows = this.getReservedRows(
+			cluster.lines.length,
+			rawRows,
+			this.isTransientPanelExpected(cluster),
+		);
+		return Math.max(1, rawRows - reservedRows);
 	}
 
 	private hasVisibleOverlay(): boolean {
@@ -415,14 +779,23 @@ export class TerminalSplitCompositor {
 		}
 	}
 
-	private renderScrollableRoot(width: number): string[] {
+	private renderScrollableRoot(width: number, reservedRows?: number): string[] {
 		if (this.disposed) return this.callOriginalRender(width);
 
-		if (this.hasVisibleOverlay()) return this.callOriginalRender(width);
+		if (this.hasVisibleOverlay()) {
+			return this.callOriginalRender(width);
+		}
 
 		const rawRows = this.getRawRows();
 		const cluster = this.getClusterRender(Math.max(1, width), rawRows);
-		const scrollableRows = Math.max(1, rawRows - cluster.lines.length);
+		const stableReservedRows =
+			reservedRows ??
+			this.getReservedRows(
+				cluster.lines.length,
+				rawRows,
+				this.isTransientPanelExpected(cluster),
+			);
+		const scrollableRows = Math.max(1, rawRows - stableReservedRows);
 
 		// ── Scrollbar-drag fast path ────────────────────────────────────────
 		// While the user is dragging the scrollbar, the transcript content does
@@ -447,12 +820,19 @@ export class TerminalSplitCompositor {
 			this.cachedRootLines = lines;
 		}
 		this.maxScrollOffset = Math.max(0, lines.length - scrollableRows);
-		this.scrollOffset = clampScrollOffset(this.scrollOffset, this.maxScrollOffset);
+		this.scrollOffset = clampScrollOffset(
+			this.scrollOffset,
+			this.maxScrollOffset,
+		);
 
-		const start = Math.max(0, lines.length - scrollableRows - this.scrollOffset);
+		const start = Math.max(
+			0,
+			lines.length - scrollableRows - this.scrollOffset,
+		);
 		const visible = lines.slice(start, start + scrollableRows);
 		const missingRows = scrollableRows - visible.length;
-		const resourceStart = this.scrollOffset === 0 ? findStartupResourceStart(visible) : -1;
+		const resourceStart =
+			this.scrollOffset === 0 ? findStartupResourceStart(visible) : -1;
 		if (resourceStart >= 0) {
 			let trailingBlankRows = 0;
 			while (
@@ -461,10 +841,15 @@ export class TerminalSplitCompositor {
 			) {
 				trailingBlankRows += 1;
 			}
-			if (trailingBlankRows > 0) visible.splice(visible.length - trailingBlankRows);
+			if (trailingBlankRows > 0)
+				visible.splice(visible.length - trailingBlankRows);
 			// Keep the centered welcome art in place while moving every flexible
 			// blank row before Pi's resource inventory, directly above the editor.
-			visible.splice(resourceStart, 0, ...Array(missingRows + trailingBlankRows).fill(""));
+			visible.splice(
+				resourceStart,
+				0,
+				...Array(missingRows + trailingBlankRows).fill(""),
+			);
 		} else if (missingRows > 0) {
 			visible.push(...Array(missingRows).fill(""));
 		}
@@ -478,11 +863,18 @@ export class TerminalSplitCompositor {
 		// Pi has no native transcript scrollbar; draw a thumb column so the
 		// scroll position is always visible. scrollOffset 0 = bottom (latest).
 		const totalLines = lines.length;
-		const thumbHeight = Math.max(1, Math.round((scrollableRows * scrollableRows) / Math.max(1, totalLines)));
+		const thumbHeight = Math.max(
+			1,
+			Math.round((scrollableRows * scrollableRows) / Math.max(1, totalLines)),
+		);
 		const track = Math.max(1, scrollableRows - thumbHeight);
 		const thumbTop =
 			this.maxScrollOffset > 0
-				? Math.round(((this.maxScrollOffset - this.scrollOffset) / this.maxScrollOffset) * track)
+				? Math.round(
+						((this.maxScrollOffset - this.scrollOffset) /
+							this.maxScrollOffset) *
+							track,
+					)
 				: track;
 		const innerWidth = Math.max(1, width - 1);
 		const rendered = visible.map((line, i) => {
@@ -499,7 +891,9 @@ export class TerminalSplitCompositor {
 		return rendered;
 	}
 
-	private handleInput(data: string): { consume?: boolean; data?: string } | undefined {
+	private handleInput(
+		data: string,
+	): { consume?: boolean; data?: string } | undefined {
 		if (this.disposed || this.hasVisibleOverlay()) return undefined;
 		this.onDismissNotice?.();
 
@@ -518,6 +912,7 @@ export class TerminalSplitCompositor {
 
 		const keyboard = parseKeyboardScroll(data);
 		if (!keyboard) {
+			this.updateCommandPanelHint(data);
 			// The editor component is hidden from Pi's normal render tree and painted
 			// separately as part of the pinned cluster. Plain text input is handled by
 			// the focused editor after this listener returns, so schedule one repaint
@@ -527,6 +922,7 @@ export class TerminalSplitCompositor {
 		}
 
 		if (keyboard.action === "jumpBottom") {
+			this.commandPanelHintUntil = 0;
 			this.scrollOffset = 0;
 			this.selection.clear();
 			this.capabilities.requestRender?.();
@@ -535,10 +931,14 @@ export class TerminalSplitCompositor {
 		}
 
 		const rawRows = this.getRawRows();
-		const scrollableRows = Math.max(
-			1,
-			rawRows - this.getClusterRender(this.capabilities.getColumns() || 80, rawRows).lines.length,
+		const width = this.capabilities.getColumns() || 80;
+		const cluster = this.getClusterRender(width, rawRows);
+		const reservedRows = this.getReservedRows(
+			cluster.lines.length,
+			rawRows,
+			this.isTransientPanelExpected(cluster),
 		);
+		const scrollableRows = Math.max(1, rawRows - reservedRows);
 
 		if (keyboard.action === "pageUp") {
 			const before = this.scrollOffset;
@@ -557,7 +957,12 @@ export class TerminalSplitCompositor {
 	}
 
 	/** Handle transcript-owned mouse input; return false so cluster widgets can receive theirs. */
-	private handleMouseEvent(ev: { button: string; action: string; col: number; row: number }): boolean {
+	private handleMouseEvent(ev: {
+		button: string;
+		action: string;
+		col: number;
+		row: number;
+	}): boolean {
 		// End scrollbar drag on release regardless of where the pointer is.
 		if (this.scrollbarDragging && ev.action === "release") {
 			this.scrollbarDragging = false;
@@ -653,13 +1058,19 @@ export class TerminalSplitCompositor {
 				this.callOriginalWrite(SYNC_BEGIN + ENABLE_MOUSE_SGR + SYNC_END);
 			}
 		}, 1200);
-		if (typeof this.mouseResumeTimer === "object" && "unref" in this.mouseResumeTimer) {
+		if (
+			typeof this.mouseResumeTimer === "object" &&
+			"unref" in this.mouseResumeTimer
+		) {
 			(this.mouseResumeTimer as { unref: () => void }).unref();
 		}
 	}
 
 	private scrollBy(delta: number): void {
-		const next = clampScrollOffset(this.scrollOffset + delta, this.maxScrollOffset);
+		const next = clampScrollOffset(
+			this.scrollOffset + delta,
+			this.maxScrollOffset,
+		);
 		if (next === this.scrollOffset) return;
 		this.scrollOffset = next;
 		this.capabilities.requestRender?.();
@@ -675,7 +1086,10 @@ export class TerminalSplitCompositor {
 		const thumb = Math.max(1, Math.round((rows * rows) / Math.max(1, total)));
 		const track = Math.max(1, rows - thumb);
 		const t = Math.min(1, Math.max(0, (row - 1 - thumb / 2) / track));
-		const next = clampScrollOffset(Math.round((1 - t) * this.maxScrollOffset), this.maxScrollOffset);
+		const next = clampScrollOffset(
+			Math.round((1 - t) * this.maxScrollOffset),
+			this.maxScrollOffset,
+		);
 		if (next === this.scrollOffset) return;
 		this.scrollOffset = next;
 		this.capabilities.requestRender?.();
@@ -714,7 +1128,10 @@ export class TerminalSplitCompositor {
 			// cluster shrinks erases freshly rendered text until the next scroll/redraw.
 			const clearStart = startRow;
 			const clearEnd = previous
-				? Math.max(previous.startRow + previous.lines.length - 1, startRow + lines.length - 1)
+				? Math.max(
+						previous.startRow + previous.lines.length - 1,
+						startRow + lines.length - 1,
+					)
 				: startRow + lines.length - 1;
 			for (let row = clearStart; row <= clearEnd; row++) {
 				const index = row - startRow;
@@ -726,7 +1143,10 @@ export class TerminalSplitCompositor {
 
 		this.paintedCluster = { width, rawRows, startRow, lines };
 		if (cluster.cursor) {
-			buf += cursorTo(startRow + cluster.cursor.row, Math.max(1, cluster.cursor.col + 1));
+			buf += cursorTo(
+				startRow + cluster.cursor.row,
+				Math.max(1, cluster.cursor.col + 1),
+			);
 			if (!this.cursorVisible) {
 				buf += SHOW_CURSOR;
 				this.cursorVisible = true;
@@ -751,7 +1171,10 @@ export class TerminalSplitCompositor {
 	private syncTuiCursor(scrollBottom: number): string {
 		const { hardwareCursorRow, previousViewportTop: viewportTop } =
 			this.capabilities.getCursorBookkeeping();
-		const row = Math.max(1, Math.min(scrollBottom, hardwareCursorRow - viewportTop + 1));
+		const row = Math.max(
+			1,
+			Math.min(scrollBottom, hardwareCursorRow - viewportTop + 1),
+		);
 		return cursorTo(row, 1);
 	}
 
@@ -760,11 +1183,23 @@ export class TerminalSplitCompositor {
 		const rawRows = this.getRawRows();
 		const width = Math.max(1, this.capabilities.getColumns() || 80);
 		const cluster = this.getClusterRender(width, rawRows);
-		if (cluster.lines.length === 0) return;
+		const reservedRows = this.getReservedRows(
+			cluster.lines.length,
+			rawRows,
+			this.isTransientPanelExpected(cluster),
+		);
+		if (reservedRows === 0) return;
+		const paddedCluster = this.padClusterToReservedRows(cluster, reservedRows);
+		const layoutChanged =
+			!this.paintedCluster ||
+			this.paintedCluster.width !== width ||
+			this.paintedCluster.rawRows !== rawRows ||
+			this.paintedCluster.lines.length !== paddedCluster.lines.length;
+		if (layoutChanged && this.renderFixedScreen()) return;
 		this.callOriginalWrite(
 			SYNC_BEGIN +
 				DISABLE_AUTOWRAP +
-				this.paintCluster(cluster, rawRows, width) +
+				this.paintCluster(paddedCluster, rawRows, width) +
 				ENABLE_AUTOWRAP +
 				(this.getConfig().mouseScroll ? ENABLE_MOUSE_SGR : DISABLE_MOUSE) +
 				SYNC_END,
@@ -778,6 +1213,7 @@ export class TerminalSplitCompositor {
 		}
 		if (this.hasVisibleOverlay()) {
 			this.paintedCluster = null;
+			this.paintedTranscript = null;
 			this.callOriginalWrite(data);
 			return;
 		}
@@ -787,20 +1223,28 @@ export class TerminalSplitCompositor {
 			const rawRows = this.getRawRows();
 			const width = Math.max(1, this.capabilities.getColumns() || 80);
 			const cluster = this.getClusterRender(width, rawRows);
-			const reservedRows = cluster.lines.length;
+			const reservedRows = this.getReservedRows(
+				cluster.lines.length,
+				rawRows,
+				this.isTransientPanelExpected(cluster),
+			);
 			if (reservedRows === 0 || rawRows <= 2) {
 				this.callOriginalWrite(data);
 				return;
 			}
+			const paddedCluster = this.padClusterToReservedRows(cluster, reservedRows);
 			const scrollBottom = Math.max(1, rawRows - reservedRows);
 			const safeData = constrainScreenClears(data, scrollBottom);
+			if (dataTouchesScrollableTranscript(safeData, scrollBottom)) {
+				this.paintedTranscript = null;
+			}
 			this.callOriginalWrite(
 				SYNC_BEGIN +
 					DISABLE_AUTOWRAP +
 					setScrollRegion(1, scrollBottom) +
 					this.syncTuiCursor(scrollBottom) +
 					safeData +
-					this.paintCluster(cluster, rawRows, width) +
+					this.paintCluster(paddedCluster, rawRows, width) +
 					ENABLE_AUTOWRAP +
 					(this.getConfig().mouseScroll ? ENABLE_MOUSE_SGR : DISABLE_MOUSE) +
 					SYNC_END,

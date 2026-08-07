@@ -1,7 +1,7 @@
 /** Verified private Pi TUI capabilities required by the experimental fixed editor. @internal */
 export type PiMethodCapability = {
 	target: Record<PropertyKey, unknown>;
-	key: "render" | "doRender" | "write";
+	key: "render" | "doRender" | "write" | "requestRender";
 	method: (...args: unknown[]) => unknown;
 	ownDescriptor: PropertyDescriptor | undefined;
 };
@@ -31,43 +31,81 @@ export type PiFixedEditorCapabilities = {
 	readRawRows: () => number;
 	getColumns: () => number;
 	hasVisibleOverlay: () => boolean;
-	getCursorBookkeeping: () => { hardwareCursorRow: number; previousViewportTop: number };
+	getCursorBookkeeping: () => {
+		hardwareCursorRow: number;
+		previousViewportTop: number;
+	};
 	addInputListener: (
-		listener: (data: string) => { consume?: boolean; data?: string } | undefined,
+		listener: (
+			data: string,
+		) => { consume?: boolean; data?: string } | undefined,
 	) => unknown;
 	removeInputListener: (
-		listener: (data: string) => { consume?: boolean; data?: string } | undefined,
+		listener: (
+			data: string,
+		) => { consume?: boolean; data?: string } | undefined,
 	) => void;
+	requestRenderMethod: PiMethodCapability | null;
 	requestRender?: (force?: boolean) => void;
 };
 
 function isRecord(value: unknown): value is Record<PropertyKey, unknown> {
-	return (typeof value === "object" && value !== null) || typeof value === "function";
+	return (
+		(typeof value === "object" && value !== null) || typeof value === "function"
+	);
 }
 
-function ownDescriptor(target: object, key: PropertyKey): PropertyDescriptor | undefined {
+function ownDescriptor(
+	target: object,
+	key: PropertyKey,
+): PropertyDescriptor | undefined {
 	return Object.getOwnPropertyDescriptor(target, key);
 }
 
-function descriptorInChain(target: object, key: PropertyKey): PropertyDescriptor | undefined {
+function descriptorOwnerInChain(
+	target: object,
+	key: PropertyKey,
+): { owner: object; descriptor: PropertyDescriptor } | undefined {
 	let current: object | null = target;
 	while (current) {
 		const descriptor = Object.getOwnPropertyDescriptor(current, key);
-		if (descriptor) return descriptor;
+		if (descriptor) return { owner: current, descriptor };
 		current = Object.getPrototypeOf(current);
 	}
 	return undefined;
 }
 
+type MethodPatchTarget = "self" | "owner";
+
 function writableMethod(
 	target: Record<PropertyKey, unknown>,
 	key: PiMethodCapability["key"],
+	patchTarget: MethodPatchTarget = "self",
 ): PiMethodCapability | undefined {
 	const method = Reflect.get(target, key);
 	if (typeof method !== "function") return undefined;
+	if (patchTarget === "owner") {
+		const owner = descriptorOwnerInChain(target, key);
+		if (!owner) return undefined;
+		const { descriptor } = owner;
+		if (
+			!("value" in descriptor) ||
+			descriptor.writable !== true ||
+			descriptor.configurable !== true
+		) {
+			return undefined;
+		}
+		return {
+			target: owner.owner as Record<PropertyKey, unknown>,
+			key,
+			method: method as (...args: unknown[]) => unknown,
+			ownDescriptor: descriptor,
+		};
+	}
 	const descriptor = ownDescriptor(target, key);
 	if (descriptor) {
-		if (!("value" in descriptor) || descriptor.writable !== true) return undefined;
+		if (!("value" in descriptor) || descriptor.writable !== true)
+			return undefined;
 	} else if (!Object.isExtensible(target)) {
 		return undefined;
 	}
@@ -105,26 +143,53 @@ function containerChildren(value: unknown): unknown[] | undefined {
 	return Array.isArray(children) ? children : undefined;
 }
 
+function hasDescendant(
+	value: unknown,
+	predicate: (candidate: unknown) => boolean,
+	seen = new Set<unknown>(),
+): boolean {
+	if (predicate(value)) return true;
+	if (
+		(typeof value !== "object" && typeof value !== "function") ||
+		value === null
+	) {
+		return false;
+	}
+	if (seen.has(value)) return false;
+	seen.add(value);
+	const children = containerChildren(value);
+	return (
+		children?.some((child) => hasDescendant(child, predicate, seen)) ?? false
+	);
+}
+
 export function findEditorContainerIndex(
 	children: unknown[],
 	focusedComponent?: unknown,
 ): number | undefined {
 	if (focusedComponent && isRecord(focusedComponent)) {
 		const focusedIndex = children.findIndex(
-			(child) => renderable(child) && containerChildren(child)?.includes(focusedComponent),
+			(child) =>
+				renderable(child) &&
+				hasDescendant(child, (candidate) => candidate === focusedComponent),
 		);
 		if (focusedIndex !== -1) return focusedIndex;
 	}
 	const index = children.findIndex(
-		(child) => renderable(child) && containerChildren(child)?.some(isEditorLike),
+		(child) => renderable(child) && hasDescendant(child, isEditorLike),
 	);
 	return index === -1 ? undefined : index;
 }
 
-function clusterCapability(children: unknown[], editorIndex: number): PiFixedCluster | undefined {
+function clusterCapability(
+	children: unknown[],
+	editorIndex: number,
+): PiFixedCluster | undefined {
 	const editor = renderable(children[editorIndex]);
 	if (!editor) return undefined;
-	const optional = (index: number): PiRenderableCapability | null | undefined => {
+	const optional = (
+		index: number,
+	): PiRenderableCapability | null | undefined => {
 		if (index < 0 || index >= children.length) return null;
 		return renderable(children[index]);
 	};
@@ -162,20 +227,24 @@ function rowsReader(
 	return () => {
 		try {
 			const value = readRowsValue(terminal, descriptor);
-			return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+			return typeof value === "number" && Number.isFinite(value)
+				? value
+				: fallback;
 		} catch {
 			return fallback;
 		}
 	};
 }
 
-function inspectPiTuiUnsafe(value: unknown): PiFixedEditorCapabilities | undefined {
+function inspectPiTuiUnsafe(
+	value: unknown,
+): PiFixedEditorCapabilities | undefined {
 	if (!isRecord(value)) return undefined;
 	const terminalValue = Reflect.get(value, "terminal");
 	if (!isRecord(terminalValue)) return undefined;
 
-	const renderMethod = writableMethod(value, "render");
-	const doRenderMethod = writableMethod(value, "doRender");
+	const renderMethod = writableMethod(value, "render", "owner");
+	const doRenderMethod = writableMethod(value, "doRender", "owner");
 	const writeMethod = writableMethod(terminalValue, "write");
 	if (!renderMethod || !doRenderMethod || !writeMethod) return undefined;
 
@@ -189,7 +258,10 @@ function inspectPiTuiUnsafe(value: unknown): PiFixedEditorCapabilities | undefin
 	}
 	const children = Reflect.get(value, "children");
 	if (!Array.isArray(children) || children.length < 3) return undefined;
-	const editorIndex = findEditorContainerIndex(children, Reflect.get(value, "focusedComponent"));
+	const editorIndex = findEditorContainerIndex(
+		children,
+		Reflect.get(value, "focusedComponent"),
+	);
 	if (editorIndex === undefined) return undefined;
 	const cluster = clusterCapability(children, editorIndex);
 	if (!cluster) return undefined;
@@ -202,16 +274,25 @@ function inspectPiTuiUnsafe(value: unknown): PiFixedEditorCapabilities | undefin
 	) {
 		return undefined;
 	}
-	const rowsDescriptor = descriptorInChain(terminalValue, "rows");
+	const rowsDescriptor = descriptorOwnerInChain(
+		terminalValue,
+		"rows",
+	)?.descriptor;
 	if (!rowsDescriptor) return undefined;
 	const initialRows = readRowsValue(terminalValue, rowsDescriptor);
-	if (typeof initialRows !== "number" || !Number.isFinite(initialRows)) return undefined;
+	if (typeof initialRows !== "number" || !Number.isFinite(initialRows))
+		return undefined;
 	const columns = Reflect.get(terminalValue, "columns");
-	if (typeof columns !== "number" || !Number.isFinite(columns)) return undefined;
+	if (typeof columns !== "number" || !Number.isFinite(columns))
+		return undefined;
 
 	const hasOverlayValue = Reflect.get(value, "hasOverlay");
 	const overlayStackValue = Reflect.get(value, "overlayStack");
-	if (typeof hasOverlayValue !== "function" && !Array.isArray(overlayStackValue)) return undefined;
+	if (
+		typeof hasOverlayValue !== "function" &&
+		!Array.isArray(overlayStackValue)
+	)
+		return undefined;
 	const hardwareCursorRow = Reflect.get(value, "hardwareCursorRow");
 	const previousViewportTop = Reflect.get(value, "previousViewportTop");
 	if (
@@ -223,7 +304,8 @@ function inspectPiTuiUnsafe(value: unknown): PiFixedEditorCapabilities | undefin
 		return undefined;
 	}
 
-	const requestRenderValue = Reflect.get(value, "requestRender");
+	const requestRenderMethod = writableMethod(value, "requestRender") ?? null;
+	const requestRenderValue = requestRenderMethod?.method;
 	return {
 		tui: value,
 		terminal: terminalValue,
@@ -236,7 +318,9 @@ function inspectPiTuiUnsafe(value: unknown): PiFixedEditorCapabilities | undefin
 		getColumns: () => {
 			try {
 				const current = Reflect.get(terminalValue, "columns");
-				return typeof current === "number" && Number.isFinite(current) ? current : columns;
+				return typeof current === "number" && Number.isFinite(current)
+					? current
+					: columns;
 			} catch {
 				return columns;
 			}
@@ -251,7 +335,8 @@ function inspectPiTuiUnsafe(value: unknown): PiFixedEditorCapabilities | undefin
 				}
 				const stack = Reflect.get(value, "overlayStack");
 				return (
-					Array.isArray(stack) && stack.some((entry) => isRecord(entry) && entry.hidden !== true)
+					Array.isArray(stack) &&
+					stack.some((entry) => isRecord(entry) && entry.hidden !== true)
 				);
 			} catch {
 				return true;
@@ -259,7 +344,10 @@ function inspectPiTuiUnsafe(value: unknown): PiFixedEditorCapabilities | undefin
 		},
 		getCursorBookkeeping: () => {
 			try {
-				const currentHardwareCursorRow = Reflect.get(value, "hardwareCursorRow");
+				const currentHardwareCursorRow = Reflect.get(
+					value,
+					"hardwareCursorRow",
+				);
 				const currentViewportTop = Reflect.get(value, "previousViewportTop");
 				return {
 					hardwareCursorRow:
@@ -268,7 +356,8 @@ function inspectPiTuiUnsafe(value: unknown): PiFixedEditorCapabilities | undefin
 							? currentHardwareCursorRow
 							: hardwareCursorRow,
 					previousViewportTop:
-						typeof currentViewportTop === "number" && Number.isFinite(currentViewportTop)
+						typeof currentViewportTop === "number" &&
+						Number.isFinite(currentViewportTop)
 							? currentViewportTop
 							: previousViewportTop,
 				};
@@ -276,10 +365,12 @@ function inspectPiTuiUnsafe(value: unknown): PiFixedEditorCapabilities | undefin
 				return { hardwareCursorRow, previousViewportTop };
 			}
 		},
-		addInputListener: (listener) => Reflect.apply(addInputListenerValue, value, [listener]),
+		addInputListener: (listener) =>
+			Reflect.apply(addInputListenerValue, value, [listener]),
 		removeInputListener: (listener) => {
 			Reflect.apply(removeInputListenerValue, value, [listener]);
 		},
+		requestRenderMethod,
 		requestRender:
 			typeof requestRenderValue === "function"
 				? (force) => Reflect.apply(requestRenderValue, value, [force])
@@ -287,7 +378,9 @@ function inspectPiTuiUnsafe(value: unknown): PiFixedEditorCapabilities | undefin
 	};
 }
 
-export function inspectPiTui(value: unknown): PiFixedEditorCapabilities | undefined {
+export function inspectPiTui(
+	value: unknown,
+): PiFixedEditorCapabilities | undefined {
 	try {
 		return inspectPiTuiUnsafe(value);
 	} catch {

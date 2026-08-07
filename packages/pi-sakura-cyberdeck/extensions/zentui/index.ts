@@ -1,3 +1,5 @@
+/// <reference path="../../types/fixed-editor-peer-shims.d.ts" />
+
 import type {
 	ExtensionAPI,
 	ExtensionContext,
@@ -37,9 +39,13 @@ import {
 	disposeFixedEditor,
 	installFixedEditorProbe,
 	removeFixedEditorProbe,
+	scheduleFixedEditorInstall,
 } from "./fixed-editor";
 import { installFooter } from "./footer";
-import { buildSessionDurationLabel, invalidateUsageTotalsCache } from "./format";
+import {
+	buildSessionDurationLabel,
+	invalidateUsageTotalsCache,
+} from "./format";
 import { emptyGitStatus, readGitStatus } from "./git";
 import { LiveContextController } from "./live-context";
 import { readPackageVersionResult } from "./package-version";
@@ -63,7 +69,9 @@ import { installUserMessageStyle } from "./user-message";
 const ZENTUI_EDITOR_FACTORY = Symbol.for("pi-zentui.editor-factory");
 const ZENTUI_EDITOR_BASE_FACTORY = Symbol.for("pi-zentui.editor-base-factory");
 
-type EditorFactory = NonNullable<Parameters<ExtensionContext["ui"]["setEditorComponent"]>[0]>;
+type EditorFactory = NonNullable<
+	Parameters<ExtensionContext["ui"]["setEditorComponent"]>[0]
+>;
 
 type ZentuiEditorFactory = EditorFactory & {
 	[ZENTUI_EDITOR_FACTORY]?: true;
@@ -74,14 +82,32 @@ type ApplyUiResult = {
 	editorBlocked: boolean;
 };
 
+type PiMessageEvent = {
+	message: {
+		role?: string;
+		stopReason?: string;
+		[key: string]: unknown;
+	};
+};
+
+function getEventMessage(event: unknown): PiMessageEvent["message"] {
+	return (event as PiMessageEvent).message;
+}
+
 type EditorInstallMode = "none" | "standalone" | "wrapper";
 
 function isZentuiEditorFactory(factory: EditorFactory | undefined): boolean {
-	return Boolean((factory as ZentuiEditorFactory | undefined)?.[ZENTUI_EDITOR_FACTORY]);
+	return Boolean(
+		(factory as ZentuiEditorFactory | undefined)?.[ZENTUI_EDITOR_FACTORY],
+	);
 }
 
-function getZentuiEditorBaseFactory(factory: EditorFactory | undefined): EditorFactory | undefined {
-	return (factory as ZentuiEditorFactory | undefined)?.[ZENTUI_EDITOR_BASE_FACTORY];
+function getZentuiEditorBaseFactory(
+	factory: EditorFactory | undefined,
+): EditorFactory | undefined {
+	return (factory as ZentuiEditorFactory | undefined)?.[
+		ZENTUI_EDITOR_BASE_FACTORY
+	];
 }
 
 function isTuiContext(ctx: ExtensionContext): boolean {
@@ -100,7 +126,8 @@ export default function (pi: ExtensionAPI) {
 	let currentConfig: PolishedTuiConfig = loadConfig();
 	let activeTheme: Theme | undefined;
 	let requestFooterRender: (() => void) | undefined;
-	let getActiveExtensionStatuses: () => ReadonlyMap<string, string> = () => new Map();
+	let getActiveExtensionStatuses: () => ReadonlyMap<string, string> = () =>
+		new Map();
 	let stopRefreshInterval: StopProjectRefreshInterval = () => {};
 	let cleanupPrototypePatches: () => void = () => {};
 	let footerInstalled = false;
@@ -125,7 +152,10 @@ export default function (pi: ExtensionAPI) {
 		syncState(state, ctx, currentConfig.icons.cacheHit);
 
 	type ProjectRefreshTarget = { cwd: string; generation: number };
-	const refreshProjectState = async ({ cwd, generation }: ProjectRefreshTarget) => {
+	const refreshProjectState = async ({
+		cwd,
+		generation,
+	}: ProjectRefreshTarget) => {
 		if (!sessionLifecycle.isCurrent(generation)) return;
 		const gitCommitConfig = currentConfig.gitCommit;
 		const gitMetricsConfig = currentConfig.gitMetrics;
@@ -136,10 +166,12 @@ export default function (pi: ExtensionAPI) {
 		// pattern so format-only users still get data.
 		const formatNeedsTag = /\$\{?(?:git_tag|tag)\b/.test(fmt);
 		const formatNeedsCommit = /\$\{?(?:git_commit|commit)\b/.test(fmt);
-		const formatNeedsMetrics = /\$\{?(?:git_metrics|git_added|git_deleted)\b/.test(fmt);
+		const formatNeedsMetrics =
+			/\$\{?(?:git_metrics|git_added|git_deleted)\b/.test(fmt);
 		const formatNeedsPackage = /\$\{?(?:package|package_version)\b/.test(fmt);
 		const wantExactTag =
-			((segments.gitCommit || formatNeedsCommit) && gitCommitConfig.showTag) || formatNeedsTag;
+			((segments.gitCommit || formatNeedsCommit) && gitCommitConfig.showTag) ||
+			formatNeedsTag;
 		const wantMetrics = segments.gitMetrics || formatNeedsMetrics;
 		const wantPackage = segments.packageVersion || formatNeedsPackage;
 		const [git, runtime, packageVersion] = await Promise.all([
@@ -161,7 +193,10 @@ export default function (pi: ExtensionAPI) {
 		});
 	};
 
-	const projectRefreshScheduler = createProjectRefreshScheduler(refreshProjectState, refresh);
+	const projectRefreshScheduler = createProjectRefreshScheduler(
+		refreshProjectState,
+		refresh,
+	);
 	const scheduleProjectRefresh = (
 		ctx: ExtensionContext,
 		options?: ScheduleProjectRefreshOptions,
@@ -175,7 +210,8 @@ export default function (pi: ExtensionAPI) {
 	const refreshInteractiveState = (ctx: ExtensionContext, project = false) => {
 		if (!sessionLifecycle.isCurrent() || !ctx.hasUI) return;
 		syncFooterState(ctx);
-		if (project && currentConfig.features.statusLine) scheduleProjectRefresh(ctx);
+		if (project && currentConfig.features.statusLine)
+			scheduleProjectRefresh(ctx);
 		refresh();
 	};
 
@@ -192,8 +228,13 @@ export default function (pi: ExtensionAPI) {
 		const format = currentConfig.footerFormat ?? "";
 		const needsWallClock = segments.time || /\$\{?time\b/.test(format);
 		const needsDuration =
-			segments.sessionDuration || /\$\{?(?:session_duration|duration)\b/.test(format);
-		if (!currentConfig.features.statusLine || !(needsWallClock || needsDuration)) return;
+			segments.sessionDuration ||
+			/\$\{?(?:session_duration|duration)\b/.test(format);
+		if (
+			!currentConfig.features.statusLine ||
+			!(needsWallClock || needsDuration)
+		)
+			return;
 
 		const timer = setInterval(() => {
 			if (!sessionLifecycle.isCurrent()) return;
@@ -208,7 +249,9 @@ export default function (pi: ExtensionAPI) {
 			lastDurationLabel = label;
 			refresh();
 		}, 1000);
-		timer.unref?.();
+		if (typeof timer === "object" && "unref" in timer) {
+			(timer as { unref?: () => void }).unref?.();
+		}
 		stopSessionTimer = () => {
 			clearInterval(timer);
 			stopSessionTimer = () => {};
@@ -217,10 +260,17 @@ export default function (pi: ExtensionAPI) {
 
 	const installPrototypePatches = () => {
 		if (prototypePatchesInstalled) return;
-		const cleanupSelectorBorderStyle = installSelectorBorderStyle(getActiveTheme, getCurrentConfig);
-		const cleanupUserMessageStyle = installUserMessageStyle(getActiveTheme, getCurrentConfig);
+		const cleanupSelectorBorderStyle = installSelectorBorderStyle(
+			getActiveTheme,
+			getCurrentConfig,
+		);
+		const cleanupUserMessageStyle = installUserMessageStyle(
+			getActiveTheme,
+			getCurrentConfig,
+		);
 		const cleanupToolExecutionStyle = installToolExecutionStyle(getActiveTheme);
-		const cleanupThinkingMessageStyle = installThinkingMessageStyle(getActiveTheme);
+		const cleanupThinkingMessageStyle =
+			installThinkingMessageStyle(getActiveTheme);
 		cleanupPrototypePatches = () => {
 			cleanupThinkingMessageStyle();
 			cleanupToolExecutionStyle();
@@ -238,8 +288,13 @@ export default function (pi: ExtensionAPI) {
 
 	const makeEditorFactory = (ctx: ExtensionContext): ZentuiEditorFactory => {
 		const sessionTheme = ctx.ui.theme;
-		const factory = ((tui: TUI, theme: EditorTheme, keybindings: KeybindingsManager) =>
-			new PolishedEditor(
+		const factory = ((
+			tui: TUI,
+			theme: EditorTheme,
+			keybindings: KeybindingsManager,
+		) => {
+			scheduleFixedEditorInstall(ctx, tui, getCurrentConfig, sessionLifecycle);
+			return new PolishedEditor(
 				tui,
 				theme,
 				keybindings,
@@ -250,7 +305,8 @@ export default function (pi: ExtensionAPI) {
 					providerLabel: state.providerLabel,
 				}),
 				getThinkingLevel,
-			)) as ZentuiEditorFactory;
+			);
+		}) as ZentuiEditorFactory;
 		factory[ZENTUI_EDITOR_FACTORY] = true;
 		return factory;
 	};
@@ -260,8 +316,13 @@ export default function (pi: ExtensionAPI) {
 		baseFactory: EditorFactory,
 	): ZentuiEditorFactory => {
 		const sessionTheme = ctx.ui.theme;
-		const factory = ((tui: TUI, theme: EditorTheme, keybindings: KeybindingsManager) =>
-			new WrappedPolishedEditor(
+		const factory = ((
+			tui: TUI,
+			theme: EditorTheme,
+			keybindings: KeybindingsManager,
+		) => {
+			scheduleFixedEditorInstall(ctx, tui, getCurrentConfig, sessionLifecycle);
+			return new WrappedPolishedEditor(
 				baseFactory(tui, theme, keybindings),
 				sessionTheme,
 				getCurrentConfig,
@@ -270,7 +331,8 @@ export default function (pi: ExtensionAPI) {
 					providerLabel: state.providerLabel,
 				}),
 				getThinkingLevel,
-			)) as ZentuiEditorFactory;
+			);
+		}) as ZentuiEditorFactory;
 		factory[ZENTUI_EDITOR_FACTORY] = true;
 		factory[ZENTUI_EDITOR_BASE_FACTORY] = baseFactory;
 		return factory;
@@ -316,7 +378,9 @@ export default function (pi: ExtensionAPI) {
 
 		uninstallPrototypePatches();
 		ctx.ui.setEditorComponent(
-			editorInstallMode === "wrapper" && wrappedEditorFactory ? wrappedEditorFactory : undefined,
+			editorInstallMode === "wrapper" && wrappedEditorFactory
+				? wrappedEditorFactory
+				: undefined,
 		);
 		wrappedEditorFactory = undefined;
 		installedEditorFactory = undefined;
@@ -339,8 +403,9 @@ export default function (pi: ExtensionAPI) {
 		});
 		footerInstalled = true;
 		stopProjectRefresh();
-		stopRefreshInterval = startProjectRefreshInterval(currentConfig.projectRefreshIntervalMs, () =>
-			scheduleProjectRefresh(ctx),
+		stopRefreshInterval = startProjectRefreshInterval(
+			currentConfig.projectRefreshIntervalMs,
+			() => scheduleProjectRefresh(ctx),
 		);
 		// Paint footer shell first; git/package/runtime scan on next tick.
 		refresh();
@@ -367,7 +432,8 @@ export default function (pi: ExtensionAPI) {
 		activeTheme = ctx.ui.theme;
 		if (currentConfig.features.editor) {
 			const currentFactory = ctx.ui.getEditorComponent();
-			const editorMissingOrReplaced = !editorInstalled || !isZentuiEditorFactory(currentFactory);
+			const editorMissingOrReplaced =
+				!editorInstalled || !isZentuiEditorFactory(currentFactory);
 			if (editorMissingOrReplaced) result.editorBlocked = !installEditor(ctx);
 		} else if (editorInstalled || prototypePatchesInstalled) {
 			result.editorBlocked = !uninstallEditor(ctx);
@@ -447,7 +513,10 @@ export default function (pi: ExtensionAPI) {
 	const syncInteractiveState = (_event: unknown, ctx: ExtensionContext) => {
 		refreshInteractiveState(ctx);
 	};
-	const syncInteractiveAndProjectState = (_event: unknown, ctx: ExtensionContext) => {
+	const syncInteractiveAndProjectState = (
+		_event: unknown,
+		ctx: ExtensionContext,
+	) => {
 		refreshInteractiveState(ctx, true);
 	};
 
@@ -503,10 +572,16 @@ export default function (pi: ExtensionAPI) {
 		getActiveExtensionStatuses() {
 			return getActiveExtensionStatuses();
 		},
-		setExtensionStatusPlacement(key: string, placement: ExtensionStatusPlacement) {
+		setExtensionStatusPlacement(
+			key: string,
+			placement: ExtensionStatusPlacement,
+		) {
 			currentConfig = saveExtensionStatusPlacement(key, placement);
 		},
-		setExtensionStatusColorMode(key: string, colorMode: ExtensionStatusColorMode) {
+		setExtensionStatusColorMode(
+			key: string,
+			colorMode: ExtensionStatusColorMode,
+		) {
 			currentConfig = saveExtensionStatusColorMode(key, colorMode);
 		},
 		setFixedEditor(patch: Partial<FixedEditorConfig>, ctx: ExtensionContext) {
@@ -528,7 +603,10 @@ export default function (pi: ExtensionAPI) {
 		cleanupUi(ctx);
 	});
 
-	const syncInteractiveAndProjectStateWithUsage = (_event: unknown, ctx: ExtensionContext) => {
+	const syncInteractiveAndProjectStateWithUsage = (
+		_event: unknown,
+		ctx: ExtensionContext,
+	) => {
 		invalidateUsageTotalsCache();
 		refreshInteractiveState(ctx, true);
 	};
@@ -547,14 +625,15 @@ export default function (pi: ExtensionAPI) {
 	});
 	pi.on("thinking_level_select", syncInteractiveState);
 	pi.on("message_update", (event) => {
-		liveContext.update(event.message);
+		liveContext.update(getEventMessage(event));
 	});
 	pi.on("message_end", (event, ctx) => {
+		const message = getEventMessage(event);
 		// Pi notifies extensions before persisting a successful message, so retain its live
 		// context until agent_end; failed messages clear immediately instead of showing stale usage.
 		if (
-			event.message.role === "assistant" &&
-			(event.message.stopReason === "error" || event.message.stopReason === "aborted")
+			message.role === "assistant" &&
+			(message.stopReason === "error" || message.stopReason === "aborted")
 		) {
 			liveContext.clear();
 		}

@@ -1,3 +1,5 @@
+/// <reference path="../../../types/fixed-editor-peer-shims.d.ts" />
+
 /**
  * Probe widget and lifecycle for the fixed editor compositor.
  *
@@ -18,12 +20,18 @@ import { TerminalSplitCompositor } from "./compositor";
 import { inspectPiTui } from "./pi-compat";
 
 let compositor: TerminalSplitCompositor | null = null;
+let compositorTui: TUI | null = null;
 let didWarnUnsupported = false;
 let copyNoticeTimer: ReturnType<typeof setTimeout> | null = null;
 let storedCtx: ExtensionContext | null = null;
 let cancelProbeInstall: (() => void) | null = null;
+let cancelProbeRetry: (() => void) | null = null;
+let probeRetryCount = 0;
+let editorTuiSeen = false;
 const COPY_NOTICE_KEY = "zentui-copy-notice";
 const COPY_NOTICE_MS = 2500;
+const PROBE_RETRY_DELAY_MS = 100;
+const PROBE_RETRY_LIMIT = 80;
 
 function clearCopyNotice(ctx: ExtensionContext): void {
 	if (copyNoticeTimer) {
@@ -60,7 +68,10 @@ class CopyNoticeComponent implements Component {
 	invalidate(): void {}
 }
 
-function showCopyNotice(ctx: ExtensionContext, getConfig: () => PolishedTuiConfig): void {
+function showCopyNotice(
+	ctx: ExtensionContext,
+	getConfig: () => PolishedTuiConfig,
+): void {
 	if (!ctx.hasUI || typeof ctx.ui.setWidget !== "function") return;
 	const config = getConfig();
 	ctx.ui.setWidget(COPY_NOTICE_KEY, (_tui, theme) => {
@@ -94,48 +105,52 @@ function showCopyNotice(ctx: ExtensionContext, getConfig: () => PolishedTuiConfi
  */
 class ProbeComponent implements Component {
 	private readonly onInstall: () => void;
-	private hasQueuedInstall = false;
 
 	constructor(onInstall: () => void) {
 		this.onInstall = onInstall;
 	}
 
 	render(): string[] {
-		if (!this.hasQueuedInstall) {
-			this.hasQueuedInstall = true;
+		if (
+			!editorTuiSeen &&
+			!compositor &&
+			!cancelProbeInstall &&
+			probeRetryCount < PROBE_RETRY_LIMIT
+		) {
 			this.onInstall();
 		}
 		return [];
 	}
 
-	invalidate(): void {
-		this.hasQueuedInstall = false;
-	}
+	invalidate(): void {}
 }
 
 function warnUnsupported(ctx: ExtensionContext): void {
 	if (didWarnUnsupported || !ctx.hasUI) return;
 	didWarnUnsupported = true;
-	console.warn(
-		"[zentui] Fixed editor: unsupported Pi TUI layout — falling back to normal rendering.",
-	);
 }
+
+type InstallSource = "editor" | "probe";
 
 function installFromProbe(
 	ctx: ExtensionContext,
 	tui: TUI,
 	getConfig: () => PolishedTuiConfig,
-): void {
-	if (compositor) return;
+	source: InstallSource,
+): boolean {
+	if (compositor) {
+		if (compositorTui === tui) return true;
+		if (source === "probe") return true;
+		compositor.dispose();
+		compositor = null;
+		compositorTui = null;
+	}
 	try {
 		const config = getConfig();
-		if (!config.fixedEditor?.enabled) return;
+		if (!config.fixedEditor?.enabled) return true;
 
 		const capabilities = inspectPiTui(tui);
-		if (!capabilities) {
-			warnUnsupported(ctx);
-			return;
-		}
+		if (!capabilities) return false;
 
 		const next = new TerminalSplitCompositor(
 			capabilities,
@@ -148,15 +163,65 @@ function installFromProbe(
 			ctx.hasUI ? () => clearCopyNotice(ctx) : undefined,
 		);
 
-		if (!next.install()) {
-			warnUnsupported(ctx);
-			return;
-		}
+		if (!next.install()) return false;
 
 		compositor = next;
+		compositorTui = tui;
+		return true;
 	} catch {
-		warnUnsupported(ctx);
+		return false;
 	}
+}
+
+function cancelPendingProbeWork(): void {
+	cancelProbeInstall?.();
+	cancelProbeInstall = null;
+	cancelProbeRetry?.();
+	cancelProbeRetry = null;
+}
+
+function scheduleProbeAttempt(
+	ctx: ExtensionContext,
+	tui: TUI,
+	getConfig: () => PolishedTuiConfig,
+	lifecycle: SessionLifecycle,
+	source: InstallSource,
+): void {
+	cancelProbeRetry?.();
+	cancelProbeRetry = null;
+	if (!lifecycle.isCurrent()) return;
+
+	const installed = installFromProbe(ctx, tui, getConfig, source);
+	if (installed) {
+		cancelPendingProbeWork();
+		probeRetryCount = 0;
+		return;
+	}
+
+	probeRetryCount += 1;
+	if (probeRetryCount >= PROBE_RETRY_LIMIT) {
+		warnUnsupported(ctx);
+		return;
+	}
+
+	cancelProbeRetry = lifecycle.defer(() => {
+		cancelProbeRetry = null;
+		scheduleProbeAttempt(ctx, tui, getConfig, lifecycle, source);
+	}, PROBE_RETRY_DELAY_MS);
+}
+
+export function scheduleFixedEditorInstall(
+	ctx: ExtensionContext,
+	tui: TUI,
+	getConfig: () => PolishedTuiConfig,
+	lifecycle: SessionLifecycle,
+): void {
+	if (!lifecycle.isCurrent() || !ctx.hasUI) return;
+	editorTuiSeen = true;
+	if (!getConfig().fixedEditor?.enabled) return;
+	cancelPendingProbeWork();
+	probeRetryCount = 0;
+	scheduleProbeAttempt(ctx, tui, getConfig, lifecycle, "editor");
 }
 
 const WIDGET_KEY = "zentui-fixed-editor-probe";
@@ -175,8 +240,10 @@ export function installFixedEditorProbe(
 	if (typeof ctx.ui.setWidget !== "function") return;
 	didWarnUnsupported = false;
 	storedCtx = ctx;
-	cancelProbeInstall?.();
-	cancelProbeInstall = null;
+	if (!editorTuiSeen) {
+		cancelPendingProbeWork();
+		probeRetryCount = 0;
+	}
 
 	ctx.ui.setWidget(
 		WIDGET_KEY,
@@ -185,7 +252,7 @@ export function installFixedEditorProbe(
 				cancelProbeInstall = lifecycle.queueMicrotask(() => {
 					cancelProbeInstall = lifecycle.queueMicrotask(() => {
 						cancelProbeInstall = null;
-						installFromProbe(ctx, tui, getConfig);
+						scheduleProbeAttempt(ctx, tui, getConfig, lifecycle, "probe");
 					});
 				});
 			}),
@@ -198,10 +265,12 @@ export function installFixedEditorProbe(
  * Call from session_shutdown and cleanupUi.
  */
 export function disposeFixedEditor(ctx?: ExtensionContext): void {
-	cancelProbeInstall?.();
-	cancelProbeInstall = null;
+	cancelPendingProbeWork();
+	probeRetryCount = 0;
+	editorTuiSeen = false;
 	compositor?.dispose();
 	compositor = null;
+	compositorTui = null;
 	if (copyNoticeTimer) {
 		clearTimeout(copyNoticeTimer);
 		copyNoticeTimer = null;
@@ -215,8 +284,8 @@ export function disposeFixedEditor(ctx?: ExtensionContext): void {
  * Useful for full UI cleanup.
  */
 export function removeFixedEditorProbe(ctx: ExtensionContext): void {
-	cancelProbeInstall?.();
-	cancelProbeInstall = null;
+	cancelPendingProbeWork();
+	probeRetryCount = 0;
 	if (!ctx.hasUI) return;
 	if (typeof ctx.ui.setWidget !== "function") return;
 	ctx.ui.setWidget(WIDGET_KEY, undefined);

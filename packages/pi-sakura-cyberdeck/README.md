@@ -2,12 +2,12 @@
 
 Sakura Macaron visual pack for [Pi](https://pi.dev).
 
-**v1.1.7** — removes idle footer pulse renders that made fixed-editor sessions sluggish.
+**v1.1.9** — smooths slash-command candidate panels under fixed-editor while preserving the transcript-only scrollbar.
 
 ## What’s inside
 
 | Piece | Role |
-|-------|------|
+| ------- | ------ |
 | **Theme** `sakura-macaron` | Truecolor palette (sakura / peach / petal / lavender / sky / mint / coral) |
 | **Header** | Sakura→sky cyberdeck startup art |
 | **Matrix** | Pastel digital rain while working (optional; can conflict with shimmer) |
@@ -106,6 +106,17 @@ Recommended companion settings (optional, user-owned):
 Avoid stacking with `pi-zentui`, `pi-powerline-footer`, `@tifan/pi-fixed-editor`, stock `pi-claude-shimmer`, or a second copy of this pack. They share footer / working / editor surfaces.
 
 ## Changelog
+
+### 1.1.9
+
+- **Slash commands + fixed editor**: stabilize the pinned editor/candidate cluster height while slash-command suggestions are open, so filtering `/s`, `/sa`, etc. no longer repeatedly repaints or pushes the scrollable transcript.
+- Keep candidate-list repaint mostly inside the bottom cluster by reusing the transcript cache unless terminal writes actually touch the scrollable transcript region.
+
+### 1.1.8
+
+- **Matrix + fixed editor**: expose a lightweight fixed-editor repaint hook so Matrix rain frames can repaint the pinned cluster without calling `requestRender(true)` or resetting the full transcript renderer.
+- **Right rail**: restore the original transcript-only scrollbar path for Pi 0.84 by installing fixed-editor on the real editor TUI and rendering the scrollable root through the fixed-editor compositor; editor/footer rows are not part of the scrollbar.
+- Lower the Matrix default from 10 FPS to 8 FPS; explicit user `fps` config still wins.
 
 ### 1.1.7
 
