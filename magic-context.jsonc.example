@@ -1,5 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/cortexkit/magic-context/master/assets/magic-context.schema.json",
+  "allow_home_project": true,
   "execute_threshold_percentage": 40,
   "execute_threshold_tokens": {
     "default": 100000
