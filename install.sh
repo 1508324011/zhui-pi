@@ -23,6 +23,22 @@ done
 echo "  - pi-sakura-cyberdeck (synthwave 定制版)"
 pi install "$SCRIPT_DIR/packages/pi-sakura-cyberdeck" >/dev/null 2>&1 || echo "  ! 安装失败: pi-sakura-cyberdeck"
 
+# Magic Context 0.34.x 的 session-projects 背景任务需要 ESM import Pi core。
+# Pi 自带的 node 前缀不在插件 npm 的 node_modules 解析链里，用 symlink 暴露 peer 包，避免复制/钉死版本。
+PI_BIN="$(command -v pi || true)"
+if [ -n "$PI_BIN" ]; then
+	PI_BIN_REAL="$(readlink -f "$PI_BIN" 2>/dev/null || printf '%s' "$PI_BIN")"
+	PI_NODE_ROOT="$(cd "$(dirname "$PI_BIN_REAL")/.." 2>/dev/null && pwd || true)"
+	PI_CORE_DIR="$PI_NODE_ROOT/lib/node_modules/@earendil-works/pi-coding-agent"
+	if [ -d "$PI_CORE_DIR" ]; then
+		mkdir -p "$AGENT_DIR/npm/node_modules/@earendil-works"
+		ln -sfn "$PI_CORE_DIR" "$AGENT_DIR/npm/node_modules/@earendil-works/pi-coding-agent"
+		echo "  - pi-coding-agent peer symlink → $PI_CORE_DIR"
+	else
+		echo "  ! 未找到 Pi core 包，跳过 peer symlink"
+	fi
+fi
+
 echo "==> 3/6 安装嵌入模型（离线可用）"
 EMBED_SRC="$SCRIPT_DIR/models/embedding/Xenova/bge-small-zh-v1.5"
 EMBED_DST="$HOME/.local/share/cortexkit/magic-context/models/Xenova/bge-small-zh-v1.5"
