@@ -2,6 +2,7 @@
 name: trellis-check
 description: Trellis 代码质量检查专家。审查代码变更与规范的一致性，并自动修复问题。
 tools: read, grep, find, ls, bash, edit, write, intercom
+model: zhui/gpt-5.6-sol
 thinking: max
 systemPromptMode: replace
 inheritProjectContext: true

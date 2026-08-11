@@ -30,6 +30,7 @@
 - **项目初始化**: 当前 Trellis CLI `0.4.0-beta.8` 没有 `--pi` 初始化器。先用官方支持的平台模板初始化（如 `trellis init --opencode -u <用户名>`），再把项目级 `.pi/` 资产放入项目：`settings.json`、`prompts/trellis-*`、`agents/trellis-*`、`extensions/trellis/index.ts`。
 - **产物**: 项目内 `.trellis/` 管 specs/tasks/workspace；项目级 `.pi/` 管 Pi 平台资产：`trellis-start/continue/finish-work` 提示词、`trellis-implement/check/research` agents、`trellis` extension。
 - **与 Pi 集成**: 项目级 Trellis extension 注册 `trellis_subagent` 和 `trellis_artifact` 工具。`trellis_subagent` 负责把完整 Trellis task context 注入子代理，并把子代理 raw 输出落到 `.trellis/.runtime/pi-subagents/<runId>/`；父 session 只接收结构化 handoff，必要时再用 `trellis_artifact` 按需读取完整 artifact。
+- **本地 Pi watchdog 补丁**: `install.sh` 会执行 `scripts/patch-pi-subagents.mjs`，补齐 Pi core peer symlink、给 `pi-subagents` 发布包源码加入最小 `tsconfig`，并修复 Trellis/Pi 集成里子进程 watchdog 裸 `sendMessage`、`.pi/` 平台资产误入 changed-files watchdog 的问题。
 - 首次进入已初始化的项目目录时，Pi 会提示信任项目（`.pi/` 资源），选择 Trust 即可
 
 > 注意：`.trellis/` 与项目内 `.pi/` 属于**项目目录**，不在本同步仓库中（按项目独立管理）。

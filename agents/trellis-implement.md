@@ -2,6 +2,7 @@
 name: trellis-implement
 description: Trellis 代码实现专家。理解规范需求后实现功能，禁止 git commit。
 tools: read, grep, find, ls, bash, edit, write, intercom
+model: deepseek/deepseek-v4-pro
 thinking: max
 systemPromptMode: replace
 inheritProjectContext: true
