@@ -68,3 +68,37 @@ cd ~/zhui-pi
 # 手动更新配置文件（或从 ~/.pi/agent 复制）
 git add -A && git commit -m "update config" && git push
 ```
+
+## 项目 Trellis 模板
+
+`zhui-pi` 是 Pi agent 定义、模型选择、Trellis 项目扩展模板和安装策略的持久所有者。目标仓库的 `.pi` 是同步产物；缓存、日志、运行 artifact 以及其他项目自有 `.pi` 文件不属于模板。
+
+`templates/project-trellis/` 包含扩展、三个 Trellis agent、三个项目 prompt 和 `settings.json`。同步命令：
+
+```bash
+node scripts/sync-project-trellis.mjs --dry-run --target /path/to/repository
+node scripts/sync-project-trellis.mjs --target /path/to/repository --receipt /path/to/receipt.json
+node scripts/sync-project-trellis.mjs --check --target /path/to/repository
+```
+
+命令拒绝非仓库根目录、根目录符号链接、符号链接 `.pi` 和越界模板路径，不删除目标 `.pi` 中不受模板管理的资产。stdout 与可选 `--receipt` 都是 JSON，记录 source revision（脏树带 `-dirty`）、copied/unchanged/rejected/deleted 清单。对未变化目标重复执行不会写文件。
+
+agent 中现有的 `deepseek/deepseek-v4-pro` 与 `zhui/gpt-5.6-sol` 选择是明确配置，安装器不会根据历史 provider 故障重写它们。扩展在每次 spawn 前检查实际 agent/model/provider、Pi model catalog、可执行文件、认证和有界实时 readiness；失败直接阻止 spawn，不跨 provider fallback。execution 与 acceptance 结果分别写入运行 manifest，只有有效 fenced `acceptance-report` 才能形成 accepted completion。
+
+## pi-lens 全局策略
+
+`templates/pi-lens/config.json` 只声明 pi-lens 3.8.74 支持的 `tests.enabled=false`。`install.sh` 通过结构化 JSON 深合并安装它，并保留 `~/.pi-lens/config.json` 的其他键。独立命令：
+
+```bash
+node scripts/install-pi-lens-config.mjs --dry-run
+node scripts/install-pi-lens-config.mjs --check
+node scripts/install-pi-lens-config.mjs
+```
+
+验证：
+
+```bash
+npm install
+npm test
+npm run typecheck:trellis
+```

@@ -1,0 +1,13 @@
+{
+  "name": "zhui-pi-config",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --experimental-transform-types --test test/*.test.mjs",
+    "typecheck:trellis": "tsc -p templates/project-trellis/extensions/trellis/tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.9.0"
+  }
+}

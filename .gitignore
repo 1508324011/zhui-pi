@@ -7,3 +7,4 @@ web-search.json
 # 本地噪音
 .DS_Store
 *.log
+node_modules/
