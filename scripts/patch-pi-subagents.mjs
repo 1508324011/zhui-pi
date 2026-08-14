@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join, resolve } from "node:path";
 import {
   existsSync,
   lstatSync,
@@ -12,8 +11,6 @@ import {
   writeFileSync,
 } from "node:fs";
 
-const scriptDir = dirname(fileURLToPath(import.meta.url));
-const repoRoot = dirname(scriptDir);
 const agentDir = resolve(process.argv[2] || process.env.PI_CODING_AGENT_DIR || join(process.env.HOME || "", ".pi", "agent"));
 const nodeModulesDir = join(agentDir, "npm", "node_modules");
 const scopeDir = join(nodeModulesDir, "@earendil-works");
@@ -78,11 +75,11 @@ function lstatExists(path) {
   }
 }
 
-function replaceIfPresent(path, before, after) {
+function replaceIfPresent(path, before, after, opts = {}) {
   const current = readText(path);
   if (current.includes(after)) return false;
   if (!current.includes(before)) {
-    console.warn(`  ! 未找到预期补丁上下文: ${path}`);
+    if (!opts.silent) console.warn(`  ! 未找到预期补丁上下文: ${path}`);
     return false;
   }
   writeText(path, current.replace(before, after));
@@ -122,15 +119,29 @@ function patchPiSubagentsWatchdog() {
   const registerChild = join(piSubagentsDir, "src", "watchdog", "register-child.ts");
   const registerMain = join(piSubagentsDir, "src", "watchdog", "register-main.ts");
 
+  // 旧版（< 0.49）补丁：新版已上游修复或布局不同，静默跳过
   changes += Number(replaceIfPresent(
     changeSignature,
     'const IGNORED_CHANGE_PREFIXES = [".pi-subagents/", "tmp/", "node_modules/"];',
     'const IGNORED_CHANGE_PREFIXES = [".pi/", ".pi-subagents/", "tmp/", "node_modules/"];',
+    { silent: true },
   ));
   changes += Number(replaceIfPresent(
     changeSignature,
     'return value.replaceAll(path.sep, "/").replace(/^\\.\\//, "");',
     'return value.split(path.sep).join("/").replace(/^\\.\\//, "");',
+    { silent: true },
+  ));
+  // pi-subagents >= 0.49 使用模板常量 + IGNORED_CHANGE_PATHS 集合
+  changes += Number(replaceIfPresent(
+    changeSignature,
+    'const IGNORED_CHANGE_PREFIXES = [`${PROJECT_SUBAGENTS_RELATIVE_DIR}/`, "tmp/", "node_modules/"];',
+    'const IGNORED_CHANGE_PREFIXES = [".pi/", `${PROJECT_SUBAGENTS_RELATIVE_DIR}/`, "tmp/", "node_modules/"];',
+  ));
+  changes += Number(replaceIfPresent(
+    changeSignature,
+    'const IGNORED_CHANGE_PATHS = new Set([PROJECT_SUBAGENTS_RELATIVE_DIR, "tmp", "node_modules"]);',
+    'const IGNORED_CHANGE_PATHS = new Set([".pi", PROJECT_SUBAGENTS_RELATIVE_DIR, "tmp", "node_modules"]);',
   ));
   changes += Number(replaceIfPresent(
     registerChild,
