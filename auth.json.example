@@ -1,4 +1,5 @@
 {
   "deepseek": { "type": "api_key", "key": "sk-你的DeepSeek密钥" },
-  "zhui": { "type": "api_key", "key": "sk-你的zhui密钥" }
+  "zhui": { "type": "api_key", "key": "sk-你的zhui密钥" },
+  "scnet": { "type": "api_key", "key": "sk-tp-你的SCNet Token Plan密钥" }
 }

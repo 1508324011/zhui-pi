@@ -8,13 +8,13 @@
   "historian_timeout_ms": 120000,
   "history_budget_percentage": 0.12,
   "historian": {
-    "model": "deepseek/deepseek-v4-flash"
+    "model": "scnet/DeepSeek-V4-Flash-0731"
   },
   "dreamer": {
-    "model": "deepseek/deepseek-v4-flash"
+    "model": "scnet/DeepSeek-V4-Flash-0731"
   },
   "sidekick": {
-    "model": "deepseek/deepseek-v4-flash"
+    "model": "scnet/DeepSeek-V4-Flash-0731"
   },
   "embedding": {
     "provider": "local",

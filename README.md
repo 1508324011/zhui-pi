@@ -7,7 +7,7 @@
 | 文件/目录 | 说明 | 目标位置 |
 | ----------- | ------ | --------- |
 | `settings.json` | 全局设置（默认模型/**synthwave 主题**/已装包） | `~/.pi/agent/settings.json` |
-| `models.json` | zhui provider 配置（5 个模型+思考级别映射） | `~/.pi/agent/models.json` |
+| `models.json` | deepseek、zhui 与 SCNet Token Plan provider 配置（含模型窗口和思考级别映射） | `~/.pi/agent/models.json` |
 | `mcp.json` | MCP 服务器（chrome-devtools + context7） | `~/.config/mcp/mcp.json` |
 | `extensions/` | 扩展配置（permission-system 权限规则） | `~/.pi/agent/extensions/` |
 | `agents/` | 全局 Trellis agents 模板 | `~/.pi/agent/agents/` |
@@ -21,9 +21,11 @@
 本机额外配置了 [Trellis](https://github.com/mindfold-ai/Trellis)（任务驱动开发框架）：
 
 - **CLI**: 全局安装 `@mindfoldhq/trellis`
+
   ```bash
   npm install -g @mindfoldhq/trellis@latest
   ```
+
   > ⚠️ **注意包名**：npm 上存在同名 `trellis` 包（TrellisVCS 语义版本控制），那是**另一个项目**。
   > 正确的工作流框架包名是 **`@mindfoldhq/trellis`**（scoped package），安装时务必带 `@mindfoldhq/` 前缀。
   > 如果误装了错误的包，先 `npm uninstall -g trellis` 再安装正确的。
@@ -49,7 +51,7 @@ cd ~/zhui-pi && bash install.sh
 
 # 4. 手动填入 API 密钥
 cp auth.json.example ~/.pi/agent/auth.json
-# 编辑 auth.json，填入 deepseek 和 zhui 的密钥
+# 编辑 auth.json，按需填入 deepseek、zhui 和 scnet 的密钥
 
 # 5. 启动 pi
 pi

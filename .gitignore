@@ -1,6 +1,15 @@
 # 敏感文件 —— 永不提交
 auth.json
+*.env
+*.env.*
+*.local
+*.local.*
+*api*key*
+*apikey*
 *.key
+*.pem
+*.p12
+*.pfx
 **/secrets*
 web-search.json
 

@@ -114,6 +114,355 @@
           }
         }
       ]
+    },
+    "scnet": {
+      "baseUrl": "https://api.scnet.cn/api/llm/v1",
+      "api": "openai-completions",
+      "compat": {
+        "supportsDeveloperRole": false,
+        "supportsStore": false
+      },
+      "models": [
+        {
+          "id": "GLM-5.2",
+          "name": "GLM-5.2",
+          "reasoning": true,
+          "input": [
+            "text"
+          ],
+          "contextWindow": 1048576,
+          "maxTokens": 131072,
+          "compat": {
+            "thinkingFormat": "qwen",
+            "supportsReasoningEffort": true
+          },
+          "thinkingLevelMap": {
+            "minimal": null,
+            "low": "low",
+            "medium": "medium",
+            "high": "high",
+            "xhigh": null,
+            "max": "max"
+          }
+        },
+        {
+          "id": "GLM-5",
+          "name": "GLM-5",
+          "reasoning": true,
+          "input": [
+            "text"
+          ],
+          "contextWindow": 202752,
+          "maxTokens": 16384,
+          "compat": {
+            "thinkingFormat": "qwen",
+            "supportsReasoningEffort": true
+          },
+          "thinkingLevelMap": {
+            "minimal": null,
+            "low": "low",
+            "medium": "medium",
+            "high": "high",
+            "xhigh": null,
+            "max": null
+          }
+        },
+        {
+          "id": "GLM-5.1",
+          "name": "GLM-5.1",
+          "reasoning": true,
+          "input": [
+            "text"
+          ],
+          "contextWindow": 202752,
+          "maxTokens": 128000,
+          "compat": {
+            "thinkingFormat": "qwen",
+            "supportsReasoningEffort": true
+          },
+          "thinkingLevelMap": {
+            "minimal": null,
+            "low": "low",
+            "medium": "medium",
+            "high": "high",
+            "xhigh": null,
+            "max": null
+          }
+        },
+        {
+          "id": "Kimi-K3",
+          "name": "Kimi-K3",
+          "reasoning": true,
+          "input": [
+            "text",
+            "image"
+          ],
+          "contextWindow": 1048576,
+          "maxTokens": 131072,
+          "compat": {
+            "thinkingFormat": "openai",
+            "supportsReasoningEffort": true
+          },
+          "thinkingLevelMap": {
+            "off": null,
+            "minimal": null,
+            "low": "low",
+            "medium": "medium",
+            "high": "high",
+            "xhigh": null,
+            "max": "max"
+          }
+        },
+        {
+          "id": "Kimi-K2.7-Code",
+          "name": "Kimi-K2.7-Code",
+          "reasoning": true,
+          "input": [
+            "text",
+            "image"
+          ],
+          "contextWindow": 262144,
+          "maxTokens": 262144,
+          "compat": {
+            "thinkingFormat": "openai",
+            "supportsReasoningEffort": true
+          },
+          "thinkingLevelMap": {
+            "off": null,
+            "minimal": null,
+            "low": "low",
+            "medium": "medium",
+            "high": "high",
+            "xhigh": null,
+            "max": null
+          }
+        },
+        {
+          "id": "Kimi-K2.6",
+          "name": "Kimi-K2.6",
+          "reasoning": true,
+          "input": [
+            "text",
+            "image"
+          ],
+          "contextWindow": 262144,
+          "maxTokens": 262144,
+          "compat": {
+            "thinkingFormat": "openai",
+            "supportsReasoningEffort": true
+          },
+          "thinkingLevelMap": {
+            "off": null,
+            "minimal": null,
+            "low": "low",
+            "medium": "medium",
+            "high": "high",
+            "xhigh": null,
+            "max": null
+          }
+        },
+        {
+          "id": "Kimi-K2.5",
+          "name": "Kimi-K2.5",
+          "reasoning": true,
+          "input": [
+            "text",
+            "image"
+          ],
+          "contextWindow": 262144,
+          "maxTokens": 262144,
+          "compat": {
+            "thinkingFormat": "openai",
+            "supportsReasoningEffort": true
+          },
+          "thinkingLevelMap": {
+            "off": null,
+            "minimal": null,
+            "low": "low",
+            "medium": "medium",
+            "high": "high",
+            "xhigh": null,
+            "max": null
+          }
+        },
+        {
+          "id": "DeepSeek-V4-Pro",
+          "name": "DeepSeek-V4-Pro",
+          "reasoning": true,
+          "input": [
+            "text"
+          ],
+          "contextWindow": 1048576,
+          "maxTokens": 384000,
+          "compat": {
+            "thinkingFormat": "qwen",
+            "supportsReasoningEffort": true
+          },
+          "thinkingLevelMap": {
+            "minimal": null,
+            "low": "low",
+            "medium": "medium",
+            "high": "high",
+            "xhigh": null,
+            "max": "max"
+          }
+        },
+        {
+          "id": "DeepSeek-V4-Flash",
+          "name": "DeepSeek-V4-Flash",
+          "reasoning": true,
+          "input": [
+            "text"
+          ],
+          "contextWindow": 1048576,
+          "maxTokens": 384000,
+          "compat": {
+            "thinkingFormat": "qwen",
+            "supportsReasoningEffort": true
+          },
+          "thinkingLevelMap": {
+            "minimal": null,
+            "low": "low",
+            "medium": "medium",
+            "high": "high",
+            "xhigh": null,
+            "max": "max"
+          }
+        },
+        {
+          "id": "DeepSeek-V4-Flash-0731",
+          "name": "DeepSeek-V4-Flash-0731",
+          "reasoning": true,
+          "input": [
+            "text"
+          ],
+          "contextWindow": 1048576,
+          "maxTokens": 384000,
+          "compat": {
+            "thinkingFormat": "qwen",
+            "supportsReasoningEffort": true
+          },
+          "thinkingLevelMap": {
+            "minimal": null,
+            "low": "low",
+            "medium": "medium",
+            "high": "high",
+            "xhigh": null,
+            "max": "max"
+          }
+        },
+        {
+          "id": "MiniMax-M3",
+          "name": "MiniMax-M3",
+          "reasoning": true,
+          "input": [
+            "text"
+          ],
+          "contextWindow": 1000000,
+          "maxTokens": 128000,
+          "compat": {
+            "thinkingFormat": "qwen",
+            "supportsReasoningEffort": true
+          },
+          "thinkingLevelMap": {
+            "minimal": null,
+            "low": "low",
+            "medium": "medium",
+            "high": "high",
+            "xhigh": null,
+            "max": "max"
+          }
+        },
+        {
+          "id": "MiniMax-M2.7",
+          "name": "MiniMax-M2.7",
+          "reasoning": true,
+          "input": [
+            "text"
+          ],
+          "contextWindow": 204800,
+          "maxTokens": 131072,
+          "compat": {
+            "thinkingFormat": "qwen",
+            "supportsReasoningEffort": true
+          },
+          "thinkingLevelMap": {
+            "minimal": null,
+            "low": "low",
+            "medium": "medium",
+            "high": "high",
+            "xhigh": null,
+            "max": "max"
+          }
+        },
+        {
+          "id": "MiniMax-M2.5",
+          "name": "MiniMax-M2.5",
+          "reasoning": true,
+          "input": [
+            "text"
+          ],
+          "contextWindow": 204800,
+          "maxTokens": 131072,
+          "compat": {
+            "thinkingFormat": "qwen",
+            "supportsReasoningEffort": true
+          },
+          "thinkingLevelMap": {
+            "minimal": null,
+            "low": "low",
+            "medium": "medium",
+            "high": "high",
+            "xhigh": null,
+            "max": null
+          }
+        },
+        {
+          "id": "MiMo-V2.5-Pro",
+          "name": "MiMo-V2.5-Pro",
+          "reasoning": true,
+          "input": [
+            "text"
+          ],
+          "contextWindow": 1048576,
+          "maxTokens": 131072,
+          "compat": {
+            "thinkingFormat": "qwen",
+            "supportsReasoningEffort": true
+          },
+          "thinkingLevelMap": {
+            "minimal": null,
+            "low": "low",
+            "medium": "medium",
+            "high": "high",
+            "xhigh": null,
+            "max": "max"
+          }
+        },
+        {
+          "id": "Qwen3.8-Max",
+          "name": "Qwen3.8-Max",
+          "reasoning": true,
+          "input": [
+            "text",
+            "image"
+          ],
+          "contextWindow": 1000000,
+          "maxTokens": 131072,
+          "compat": {
+            "thinkingFormat": "qwen",
+            "supportsReasoningEffort": true
+          },
+          "thinkingLevelMap": {
+            "minimal": null,
+            "low": "low",
+            "medium": "medium",
+            "high": "high",
+            "xhigh": null,
+            "max": "max"
+          }
+        }
+      ]
     }
   }
 }
