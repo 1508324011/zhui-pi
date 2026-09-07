@@ -1,0 +1,4 @@
+interface:
+  display_name: "Bidirectional Align"
+  short_description: "Align intent and result before work"
+  default_prompt: "Use $bidirectional-align to clarify the goal and expected result before starting work."
