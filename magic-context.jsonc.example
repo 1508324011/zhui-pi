@@ -8,13 +8,13 @@
   "historian_timeout_ms": 120000,
   "history_budget_percentage": 0.12,
   "historian": {
-    "model": "zhui/deepseek-v4-flash"
+    "opencode": {"model":"zhui/deepseek-v4.1-flash"},"pi": {"model":"zhui/deepseek-v4.1-flash"}
   },
   "dreamer": {
-    "model": "zhui/deepseek-v4-flash"
+    "opencode": {"model":"zhui/deepseek-v4.1-flash"},"pi": {"model":"zhui/deepseek-v4.1-flash"}
   },
   "sidekick": {
-    "model": "zhui/deepseek-v4-flash"
+    "model": "zhui/deepseek-v4.1-flash"
   },
   "embedding": {
     "provider": "local",
