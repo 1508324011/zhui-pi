@@ -29,8 +29,21 @@
   > ⚠️ **注意包名**：npm 上存在同名 `trellis` 包（TrellisVCS 语义版本控制），那是**另一个项目**。
   > 正确的工作流框架包名是 **`@mindfoldhq/trellis`**（scoped package），安装时务必带 `@mindfoldhq/` 前缀。
   > 如果误装了错误的包，先 `npm uninstall -g trellis` 再安装正确的。
-- **项目初始化**: 当前 Trellis CLI `0.4.0-beta.8` 没有 `--pi` 初始化器。先用官方支持的平台模板初始化（如 `trellis init --opencode -u <用户名>`），再把项目级 `.pi/` 资产放入项目：`settings.json`、`prompts/trellis-*`、`agents/trellis-*`、`extensions/trellis/index.ts`。
-- **产物**: 项目内 `.trellis/` 管 specs/tasks/workspace；项目级 `.pi/` 管 Pi 平台资产：`trellis-start/continue/finish-work` 提示词、`trellis-implement/check/research` agents、`trellis` extension。
+- **项目初始化**: Trellis CLI `0.6.x` 已原生支持 `--pi` 初始化器。在项目仓库根目录执行：
+
+  ```bash
+  trellis init -u <开发者名> --pi
+  ```
+
+  CLI 会写入 `.trellis/`（specs/tasks/workspace/scripts）、`.agents/skills/trellis-*`（Pi 原生读取该项目技能目录）、`AGENTS.md` 和 `.gitattributes`。然后把 zhui-pi 定制模板同步覆盖到项目级 `.pi/`：
+
+  ```bash
+  node scripts/sync-project-trellis.mjs --dry-run --target /path/to/repository   # 预览
+  node scripts/sync-project-trellis.mjs --target /path/to/repository --receipt /path/to/receipt.json
+  ```
+
+  上游写入的 `.pi/agents`、`.pi/prompts`、`.pi/extensions/trellis/index.ts` 是平台通用版（子代理自行加载上下文）；同步会用 zhui-pi 定制版覆盖（extension 注入 Trellis Task Context + 固定模型/思考级别，额外含 `runtime-contract.js`、`tsconfig.json`、第 4 个 prompt `trellis-review.md`）。上游 `.pi/settings.json` 与模板逐字节一致，同步报 unchanged。运行时产物（`.trellis/.runtime/`、`.developer`、`.current-task`、`__pycache__`）由上游自带的 `.trellis/.gitignore` 忽略，无需手补。
+- **产物**: 项目内 `.trellis/` 管 specs/tasks/workspace；项目级 `.pi/` 管 Pi 平台资产：`trellis-start/continue/review/finish-work` 提示词、`trellis-implement/check/research` agents、`trellis` extension。
 - **与 Pi 集成**: 项目级 Trellis extension 注册 `trellis_subagent` 和 `trellis_artifact` 工具。`trellis_subagent` 负责把完整 Trellis task context 注入子代理，并把子代理 raw 输出落到 `.trellis/.runtime/pi-subagents/<runId>/`；父 session 只接收结构化 handoff，必要时再用 `trellis_artifact` 按需读取完整 artifact。
 - **本地 Pi watchdog 补丁**: `install.sh` 会执行 `scripts/patch-pi-subagents.mjs`，补齐 Pi core peer symlink、给 `pi-subagents` 发布包源码加入最小 `tsconfig`，并修复 Trellis/Pi 集成里子进程 watchdog 裸 `sendMessage`、`.pi/` 平台资产误入 changed-files watchdog 的问题。
 - 首次进入已初始化的项目目录时，Pi 会提示信任项目（`.pi/` 资源），选择 Trust 即可
