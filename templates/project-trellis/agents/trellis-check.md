@@ -3,7 +3,7 @@ name: trellis-check
 description: |
   Code quality check expert. Reviews changes against Trellis specs, fixes issues directly, and verifies quality gates.
 tools: read, write, edit, bash, find, grep
-model: zhui/gpt-5.6-sol
+model: zhui/deepseek-v4.1-flash
 thinking: max
 ---
 

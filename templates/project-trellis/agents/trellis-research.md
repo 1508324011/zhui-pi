@@ -3,7 +3,7 @@ name: trellis-research
 description: |
   Code and technical research expert. Finds relevant files, patterns, docs, and persists findings to the current task's research/ directory.
 tools: read, write, bash, find, grep
-model: deepseek/deepseek-v4-pro
+model: zhui/deepseek-v4.1-flash
 thinking: max
 ---
 # Research Agent
